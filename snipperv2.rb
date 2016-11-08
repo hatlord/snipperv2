@@ -29,30 +29,29 @@ class Parse_xml
         rules = {}
         rules[:title]  = title.xpath('@title').text
       
-      title.xpath('./section/table').each do |info|
-      # rules = {}
-      
-      rules[:table]    = info.xpath('@title').text
-      rules[:ref]      = info.xpath('@ref').text
+        title.xpath('./section/table').each do |info|
+
+          rules[:table]    = info.xpath('@title').text
+          rules[:ref]      = info.xpath('@ref').text
 
       #need to add another loop above this to pull in <section title="Filter Rules Allow Packets From Any Source To Any Destination And Any Port"></section>
 
-      info.xpath('./tablebody/tablerow').each do |item|
+        info.xpath('./tablebody/tablerow').each do |item|
 
-      if rules[:ref] =~ /FILTER\./
-        rules[:name]   = item.xpath('./tablecell[1]/item').text
-        rules[:active] = item.xpath('./tablecell[2]/item').text
-        rules[:action] = item.xpath('./tablecell[3]/item').text
-        rules[:proto]  = item.xpath('./tablecell[4]/item').map(&:text)
-        rules[:src]    = item.xpath('./tablecell[5]/item').map(&:text)
-        rules[:srcprt] = item.xpath('./tablecell[6]/item').map(&:text)
-        rules[:dst]    = item.xpath('./tablecell[7]/item').map(&:text)
-        rules[:dport]  = item.xpath('./tablecell[8]/item').map(&:text)
-        rules[:srvc]   = item.xpath('./tablecell[9]/item').map(&:text)
-        rules[:log]    = item.xpath('./tablecell[10]/item').text
+          if rules[:ref] =~ /FILTER\./
+            rules[:name]   = item.xpath('./tablecell[1]/item').text
+            rules[:active] = item.xpath('./tablecell[2]/item').text
+            rules[:action] = item.xpath('./tablecell[3]/item').text
+            rules[:proto]  = item.xpath('./tablecell[4]/item').map(&:text)
+            rules[:src]    = item.xpath('./tablecell[5]/item').map(&:text)
+            rules[:srcprt] = item.xpath('./tablecell[6]/item').map(&:text)
+            rules[:dst]    = item.xpath('./tablecell[7]/item').map(&:text)
+            rules[:dport]  = item.xpath('./tablecell[8]/item').map(&:text)
+            rules[:srvc]   = item.xpath('./tablecell[9]/item').map(&:text)
+            rules[:log]    = item.xpath('./tablecell[10]/item').text
 
-        @rule_array << rules.dup
-        #cisco appears to populate EITHER dport or srvc. Need to write logic when we print to say print the other if empty
+            @rule_array << rules.dup
+            #cisco appears to populate EITHER dport or srvc. Need to write logic when we print to say print the other if empty
           end
         end
       end
@@ -84,12 +83,12 @@ class Parse_xml
         rules[:log]    = item.xpath('./tablecell[6]/item').text
 
         @rule_array << rules.dup
+        
         end
       end
     end
-   end
-    # @rule_array.each { |r| puts "#{r[:table]},#{r[:name]},#{r[:action]},#{r[:src]}#{r[:dst]},#{r[:srvc]},#{r[:log]}"}
-    @rule_array.each { |r| puts r[:table]}
+  end
+  @rule_array.each { |r| puts "#{r[:table]},#{r[:name]},#{r[:action]},#{r[:src]}#{r[:dst]},#{r[:srvc]},#{r[:log]}"}
   end
 
 end
