@@ -5,7 +5,7 @@ require 'nokogiri'
 require 'csv'
 require 'colorize'
 
-class Parse_xml
+class Parsexml
 
   def initialize
     @fwpol = Nokogiri::XML(File.read(ARGV[0]))
@@ -23,6 +23,10 @@ class Parse_xml
     end
   end
 
+  def testing
+    puts "It works"
+  end
+
   def cisco
     if @device[:type] =~ /Cisco Adaptive Security Appliance Firewall/i
       @fwpol.xpath('//document/report/part/section').each do |title|
@@ -33,8 +37,6 @@ class Parse_xml
 
           rules[:table]    = info.xpath('@title').text
           rules[:ref]      = info.xpath('@ref').text
-
-      #need to add another loop above this to pull in <section title="Filter Rules Allow Packets From Any Source To Any Destination And Any Port"></section>
 
         info.xpath('./tablebody/tablerow').each do |item|
 
@@ -56,47 +58,50 @@ class Parse_xml
         end
       end
     end
+  end
     @rule_array.each { |r| puts "#{r[:title]},#{r[:table]},#{r[:name]},#{r[:active]},#{r[:action]},#{r[:src]},#{r[:srcprt]},#{r[:dst]},#{r[:dport]},#{r[:srvc]},#{r[:log]}"}
-    # @rule_array.each { |r| puts r[:title]}
   end
 
-
-  end
 
   def other
     if @device[:type] !~ /Cisco Adaptive Security Appliance Firewall/i
-    @fwpol.xpath('//document/report/part/section/section/table').each do |info|
-    rules = {}
+      @fwpol.xpath('//document/report/part/section').each do |title|
+        rules = {}
+        rules[:title]  = title.xpath('@title').text
       
-      rules[:table]    = info.xpath('@title').text
-      rules[:ref]      = info.xpath('@ref').text
+        title.xpath('./section/table').each do |info|
+
+          rules[:table]    = info.xpath('@title').text
+          rules[:ref]      = info.xpath('@ref').text
 
       #need to add another loop above this to pull in <section title="Filter Rules Allow Packets From Any Source To Any Destination And Any Port"></section>
-      info.xpath('./tablebody/tablerow').each do |item|
+        info.xpath('./tablebody/tablerow').each do |item|
 
-      if rules[:ref] =~ /FILTER\./
-        rules[:name]   = item.xpath('./tablecell[1]/item').text
-        rules[:action] = item.xpath('./tablecell[2]/item').text
-        rules[:src]    = item.xpath('./tablecell[3]/item').map(&:text)
-        rules[:dst]    = item.xpath('./tablecell[4]/item').map(&:text)
-        rules[:srvc]   = item.xpath('./tablecell[5]/item').map(&:text)
-        rules[:log]    = item.xpath('./tablecell[6]/item').text
+          if rules[:ref] =~ /FILTER\./
+            rules[:name]   = item.xpath('./tablecell[1]/item').text
+            rules[:action] = item.xpath('./tablecell[2]/item').text
+            rules[:src]    = item.xpath('./tablecell[3]/item').map(&:text)
+            rules[:dst]    = item.xpath('./tablecell[4]/item').map(&:text)
+            rules[:srvc]   = item.xpath('./tablecell[5]/item').map(&:text)
+            rules[:log]    = item.xpath('./tablecell[6]/item').text
 
-        @rule_array << rules.dup
+            @rule_array << rules.dup
         
+          end
         end
       end
     end
   end
-  @rule_array.each { |r| puts "#{r[:table]},#{r[:name]},#{r[:action]},#{r[:src]}#{r[:dst]},#{r[:srvc]},#{r[:log]}"}
+    @rule_array.each { |r| puts "#{r[:title]},#{r[:table]},#{r[:name]},#{r[:action]},#{r[:src]}#{r[:dst]},#{r[:srvc]},#{r[:log]}"}
   end
 
 end
 
-fwparse = Parse_xml.new
+fwparse = Parsexml.new
 fwparse.device
 fwparse.cisco
 fwparse.other
+
 # fwparse.print_test
 
 # class Munge
