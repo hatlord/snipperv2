@@ -25,11 +25,36 @@ class Parsexml
     end
   end
 
+  def users
+    @fwpol.xpath('//document/report/part/section/section/section').each do |title|
+      userinfo = {}
+      userinfo[:title]  = title.xpath('@title').text
+
+      title.xpath('./table/tablebody/tablerow').each do |user|
+        userinfo[:user]   = user.xpath('./tablecell/item').map(&:text)
+          if userinfo[:title] == "Local Users"
+            #userid, username, password, privileges
+        end
+      end
+    end
+  end
+
+  def services
+  end
+
+  def auditrec
+    #audit recommendations
+  end
+
+  def vulns
+  end
+
   def cisco
     if @device[:type] =~ /Cisco Adaptive Security Appliance Firewall/i
       @fwpol.xpath('//document/report/part/section').each do |title|
         rules = {}
         rules[:title]  = title.xpath('@title').text
+        #Device name in here so we can do multi device reviews?
       
         title.xpath('./section/table').each do |info|
 
@@ -66,7 +91,8 @@ class Parsexml
       @fwpol.xpath('//document/report/part/section').each do |title|
         rules = {}
         rules[:title]  = title.xpath('@title').text
-      
+        #Device name in here so we can do multi device reviews?
+
         title.xpath('./section/table').each do |info|
 
           rules[:table]    = info.xpath('@title').text
@@ -104,40 +130,26 @@ class Sort_data
     # @admin = []
   end
 
-  # def administrative
-  #   @fwparse.rules.each do |rule|
-  #     if rule[:title] =~ /Allow Access To Administrative Services/i
-  #       @admin << rule
-  #       p @admin
-  #     end
-  #   end
-  # end
+  def build_arrays
 
-  def administrative
-    #This works perfectly. Will need to decice where I am manipulating this date. In this class or the parser?
-    @admin  = @fwparse.rules.select { |r| r[:title] =~ /Allow Access To Administrative Services/i }
-    @plain  = @fwparse.rules.select { |r| r[:title] =~ /Access To Clear-Text Protocol/i }
-    @permit = @fwparse.rules.select { |r| r[:title] =~ /Allow Packets From Any Source To Any Destination And Any Port/i }
-    @over_permissive
-    # puts @fwparse.rules
+    @adminsrv        = @fwparse.rules.select { |r| r[:title] =~ /Allow Access To Administrative Services/i } #remove case insensitivity?
+    @plaintext       = @fwparse.rules.select { |r| r[:title] =~ /Access To Clear-Text Protocol/i } #remove case insensitivity?
+    @permitall       = @fwparse.rules.select { |r| r[:title] =~ /Allow Packets From Any Source To Any Destination And Any Port/i }
+    @over_permissive = @fwparse.rules.select { |r| r[:table] =~ /rule allowing|rules allowing/ } #test this works with both types
+    @sensitive       = @fwparse.rules.select { |r| r[:title] =~ /Potentially Sensitive Services/ }
+    @nologging       = @fwparse.rules.select { |r| r[:title] =~ /Configured Without Logging/ }
+    @legacy          = @fwparse.rules.select { |r| r[:title] =~ /Potentially Unnecessary Services/ }
+    @norules         = @fwparse.rules.select { |r| r[:title] =~ /No Network Filtering Rules Were Configured/ } #Need to find a config that this will work on
+
+    # @fwparse.rules.each { |r| puts r[:title]}
+    # puts @over_permissive
     # puts @permit
   end
 
-  def plaintext
+  def afunction
+
   end
 
-  def permitany
-  end
-
-  def overly_permissive
-  end
-
-  def sensitive
-  end
-
-  def legacy
-  end
-#This class will sort through the data built by the parser and shit out stuff for the report. 
 end
 
 #This class will deal with output to other classes
@@ -159,9 +171,11 @@ fwparse = Parsexml.new
 fwparse.device_type
 fwparse.cisco
 fwparse.other
+fwparse.users
 
 sortme = Sort_data.new(fwparse)
-sortme.administrative
+sortme.build_arrays
+sortme.afunction
 
 # printer = Output.new(fwparse)
 # printer.printme
