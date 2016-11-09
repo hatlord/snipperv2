@@ -27,19 +27,29 @@ class Parsexml
 
   def users
     @fwpol.xpath('//document/report/part/section/section/section').each do |title|
-      userinfo = {}
-      userinfo[:title]  = title.xpath('@title').text
+      @userinfo = {}
+      @userinfo[:title]  = title.xpath('@title').text
 
       title.xpath('./table/tablebody/tablerow').each do |user|
-        userinfo[:user]   = user.xpath('./tablecell/item').map(&:text)
-          if userinfo[:title] == "Local Users"
+        if @userinfo[:title] == "Local Users"
+          @userinfo[:user]   = user.xpath('./tablecell/item').map(&:text)
             #userid, username, password, privileges
         end
       end
     end
   end
 
-  def services
+  def net_services
+    @fwpol.xpath('//document/report/part/section/section').each do |title|
+      @services = {}
+      @services[:title]  = title.xpath('@title').text
+
+      title.xpath('./table/tablebody/tablerow').each do |service|
+        if @services[:title] == "Network Services"
+          @services[:network] = service.xpath('./tablecell/item').map(&:text)
+        end
+      end
+    end
   end
 
   def auditrec
@@ -172,6 +182,8 @@ fwparse.device_type
 fwparse.cisco
 fwparse.other
 fwparse.users
+fwparse.net_services
+
 
 sortme = Sort_data.new(fwparse)
 sortme.build_arrays
