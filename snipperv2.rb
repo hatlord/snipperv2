@@ -47,13 +47,25 @@ class Parsexml
       title.xpath('./table/tablebody/tablerow').each do |service|
         if @services[:title] == "Network Services"
           @services[:network] = service.xpath('./tablecell/item').map(&:text)
+            #service name, Status(Enabled/Disabled), port
         end
       end
     end
   end
 
   def auditrec
-    #audit recommendations
+    @fwpol.xpath('//document/report/part/section').each do |title|
+      @audit = {}
+      @audit[:title]    = title.xpath('@title').text
+      
+      title.xpath('./table/tablebody/tablerow').each do |rec|
+        if @audit[:title] == "Recommendations"
+          @audit[:recs] = rec.xpath('./tablecell/item').map(&:text)
+          puts @audit
+           #Issue, Severity, Remediation, Affected Device, Nipper Report Section
+        end
+      end
+    end
   end
 
   def vulns
@@ -128,6 +140,7 @@ class Parsexml
   end
 
   def rules
+    #don't like this, find a better way
     @rule_array
   end
 
@@ -152,6 +165,7 @@ class Sort_data
     @norules         = @fwparse.rules.select { |r| r[:title] =~ /No Network Filtering Rules Were Configured/ } #Need to find a config that this will work on
 
     # @fwparse.rules.each { |r| puts r[:title]}
+    # puts @fwparse.rules
     # puts @over_permissive
     # puts @permit
   end
@@ -183,6 +197,7 @@ fwparse.cisco
 fwparse.other
 fwparse.users
 fwparse.net_services
+fwparse.auditrec
 
 
 sortme = Sort_data.new(fwparse)
