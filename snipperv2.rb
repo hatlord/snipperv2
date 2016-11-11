@@ -7,11 +7,16 @@ require 'colorize'
 
 class Parsexml
 
-  attr_reader :rule_array, :device
+  attr_reader :rule_array, :device, :vuln_array, :user_array
+  attr_reader :netw_srvc, :audit_rec
 
   def initialize
     @fwpol = Nokogiri::XML(File.read(ARGV[0]))
     @rule_array = []
+    @vuln_array = []
+    @user_array = []
+    @netw_srvc  = []
+    @audit_rec  = []
     @device = {}
   end
 
@@ -28,12 +33,16 @@ class Parsexml
   def users
     @fwpol.xpath('//document/report/part/section/section/section').each do |title|
       @userinfo = {}
-      @userinfo[:title]  = title.xpath('@title').text
+      @userinfo[:title] = title.xpath('@title').text
 
       title.xpath('./table/tablebody/tablerow').each do |user|
         if @userinfo[:title] == "Local Users"
-          @userinfo[:user]   = user.xpath('./tablecell/item').map(&:text)
-            #userid, username, password, privileges
+          @userinfo[:user]   = user.xpath('./tablecell[1]/item').text
+          @userinfo[:pass]   = user.xpath('./tablecell[2]/item').text
+          @userinfo[:priv]   = user.xpath('./tablecell[3]/item').text
+
+          @user_array << @userinfo.dup
+
         end
       end
     end
@@ -42,12 +51,17 @@ class Parsexml
   def net_services
     @fwpol.xpath('//document/report/part/section/section').each do |title|
       @services = {}
-      @services[:title]  = title.xpath('@title').text
+      @services[:title] = title.xpath('@title').text
 
       title.xpath('./table/tablebody/tablerow').each do |service|
         if @services[:title] == "Network Services"
-          @services[:network] = service.xpath('./tablecell/item').map(&:text)
-            #service name, Status(Enabled/Disabled), port
+          @services[:name]   = service.xpath('./tablecell[1]/item').text
+          @services[:status] = service.xpath('./tablecell[2]/item').text
+          @services[:proto]  = service.xpath('./tablecell[3]/item').text
+          @services[:port]   = service.xpath('./tablecell[4]/item').text
+            
+          @netw_srvc << @services.dup
+            
         end
       end
     end
@@ -56,19 +70,41 @@ class Parsexml
   def auditrec
     @fwpol.xpath('//document/report/part/section').each do |title|
       @audit = {}
-      @audit[:title]    = title.xpath('@title').text
+      @audit[:title] = title.xpath('@title').text
       
       title.xpath('./table/tablebody/tablerow').each do |rec|
         if @audit[:title] == "Recommendations"
-          @audit[:recs] = rec.xpath('./tablecell/item').map(&:text)
-          puts @audit
-           #Issue, Severity, Remediation, Affected Device, Nipper Report Section
+          @audit[:issue]     = rec.xpath('./tablecell[1]/item').text
+          @audit[:rating]    = rec.xpath('./tablecell[2]/item').text
+          @audit[:recommend] = rec.xpath('./tablecell[3]/item').text
+          @audit[:device]    = rec.xpath('./tablecell[4]/item').text
+          @audit[:section]   = rec.xpath('./tablecell[5]/item').text
+            
+          @audit_rec << @audit.dup
+
         end
       end
     end
   end
 
   def vulns
+    @fwpol.xpath('//document/report/part/section').each do |ref|
+      @vuln = {}
+      @vuln[:ref] = ref.xpath('@ref').text
+
+      ref.xpath('./table[2]/tablebody/tablerow').each do |issue|
+        if @vuln[:ref] == "VULNAUDIT.CONCLUSIONS"
+          @vuln[:cve]        = issue.xpath('./tablecell[1]/item').text
+          @vuln[:cvss]       = issue.xpath('./tablecell[2]/item').text
+          @vuln[:severity]   = issue.xpath('./tablecell[3]/item').text
+          @vuln[:advisory]   = issue.xpath('./tablecell[6]/item').text
+          @vuln[:references] = issue.xpath('./tablecell[7]/item').text
+
+          @vuln_array << @vuln.dup
+
+        end
+      end
+    end 
   end
 
   def cisco
@@ -163,7 +199,7 @@ class Sort_data
     @nologging       = @fwparse.rules.select { |r| r[:title] =~ /Configured Without Logging/ }
     @legacy          = @fwparse.rules.select { |r| r[:title] =~ /Potentially Unnecessary Services/ }
     @norules         = @fwparse.rules.select { |r| r[:title] =~ /No Network Filtering Rules Were Configured/ } #Need to find a config that this will work on
-
+    # puts @fwparse.vuln_array
     # @fwparse.rules.each { |r| puts r[:title]}
     # puts @fwparse.rules
     # puts @over_permissive
@@ -198,6 +234,7 @@ fwparse.other
 fwparse.users
 fwparse.net_services
 fwparse.auditrec
+fwparse.vulns
 
 
 sortme = Sort_data.new(fwparse)
