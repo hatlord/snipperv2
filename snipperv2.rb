@@ -115,31 +115,29 @@ class Parsexml
         #Device name in here so we can do multi device reviews?
       
         title.xpath('./section/table').each do |info|
-
           rules[:table]    = info.xpath('@title').text
           rules[:ref]      = info.xpath('@ref').text
 
-        info.xpath('./tablebody/tablerow').each do |item|
+            info.xpath('./tablebody/tablerow').each do |item|
+              if rules[:ref] =~ /FILTER\./
+                rules[:name]   = item.xpath('./tablecell[1]/item').text
+                rules[:active] = item.xpath('./tablecell[2]/item').text
+                rules[:action] = item.xpath('./tablecell[3]/item').text
+                rules[:proto]  = item.xpath('./tablecell[4]/item').map(&:text)
+                rules[:src]    = item.xpath('./tablecell[5]/item').map(&:text)
+                rules[:srcprt] = item.xpath('./tablecell[6]/item').map(&:text)
+                rules[:dst]    = item.xpath('./tablecell[7]/item').map(&:text)
+                rules[:dport]  = item.xpath('./tablecell[8]/item').map(&:text)
+                rules[:srvc]   = item.xpath('./tablecell[9]/item').map(&:text)
+                rules[:log]    = item.xpath('./tablecell[10]/item').text
 
-          if rules[:ref] =~ /FILTER\./
-            rules[:name]   = item.xpath('./tablecell[1]/item').text
-            rules[:active] = item.xpath('./tablecell[2]/item').text
-            rules[:action] = item.xpath('./tablecell[3]/item').text
-            rules[:proto]  = item.xpath('./tablecell[4]/item').map(&:text)
-            rules[:src]    = item.xpath('./tablecell[5]/item').map(&:text)
-            rules[:srcprt] = item.xpath('./tablecell[6]/item').map(&:text)
-            rules[:dst]    = item.xpath('./tablecell[7]/item').map(&:text)
-            rules[:dport]  = item.xpath('./tablecell[8]/item').map(&:text)
-            rules[:srvc]   = item.xpath('./tablecell[9]/item').map(&:text)
-            rules[:log]    = item.xpath('./tablecell[10]/item').text
-
-            @rule_array << rules.dup
+                @rule_array << rules.dup
             #cisco appears to populate EITHER dport or srvc. Need to write logic when we print to say print the other if empty
+            end
           end
         end
       end
     end
-  end
     # @rule_array.each { |r| puts "#{r[:title]},#{r[:table]},#{r[:name]},#{r[:active]},#{r[:action]},#{r[:src]},#{r[:srcprt]},#{r[:dst]},#{r[:dport]},#{r[:srvc]},#{r[:log]}"}
   end
 
@@ -149,34 +147,32 @@ class Parsexml
       @fwpol.xpath('//document/report/part/section').each do |title|
         rules = {}
         rules[:title]  = title.xpath('@title').text
-        #Device name in here so we can do multi device reviews?
 
         title.xpath('./section/table').each do |info|
-
           rules[:table]    = info.xpath('@title').text
           rules[:ref]      = info.xpath('@ref').text
 
-        info.xpath('./tablebody/tablerow').each do |item|
+            info.xpath('./tablebody/tablerow').each do |item|
+              if rules[:ref] =~ /FILTER\./
+                rules[:name]   = item.xpath('./tablecell[1]/item').text
+                rules[:action] = item.xpath('./tablecell[2]/item').text
+                rules[:src]    = item.xpath('./tablecell[3]/item').map(&:text)
+                rules[:dst]    = item.xpath('./tablecell[4]/item').map(&:text)
+                rules[:srvc]   = item.xpath('./tablecell[5]/item').map(&:text)
+                rules[:log]    = item.xpath('./tablecell[6]/item').text
 
-          if rules[:ref] =~ /FILTER\./
-            rules[:name]   = item.xpath('./tablecell[1]/item').text
-            rules[:action] = item.xpath('./tablecell[2]/item').text
-            rules[:src]    = item.xpath('./tablecell[3]/item').map(&:text)
-            rules[:dst]    = item.xpath('./tablecell[4]/item').map(&:text)
-            rules[:srvc]   = item.xpath('./tablecell[5]/item').map(&:text)
-            rules[:log]    = item.xpath('./tablecell[6]/item').text
+                @rule_array << rules.dup 
 
-            @rule_array << rules.dup    
+            end
           end
         end
       end
     end
-  end
     # @rule_array.each { |r| puts "#{r[:title]},#{r[:table]},#{r[:name]},#{r[:action]},#{r[:src]}#{r[:dst]},#{r[:srvc]},#{r[:log]}"}
   end
 
   def rules
-    #don't like this, find a better way
+    #don't like this, find a better way?
     @rule_array
   end
 
@@ -191,10 +187,10 @@ class Sort_data
 
   def build_arrays
 
-    @adminsrv        = @fwparse.rules.select { |r| r[:title] =~ /Allow Access To Administrative Services/i } #remove case insensitivity?
-    @plaintext       = @fwparse.rules.select { |r| r[:title] =~ /Access To Clear-Text Protocol/i } #remove case insensitivity?
-    @permitall       = @fwparse.rules.select { |r| r[:title] =~ /Allow Packets From Any Source To Any Destination And Any Port/i }
-    @over_permissive = @fwparse.rules.select { |r| r[:table] =~ /rule allowing|rules allowing/ } #test this works with both types
+    @adminsrv        = @fwparse.rules.select { |r| r[:title] =~ /Allow Access To Administrative Services/ }
+    @plaintext       = @fwparse.rules.select { |r| r[:title] =~ /Access To Clear-Text Protocol/ }
+    @permitall       = @fwparse.rules.select { |r| r[:title] =~ /Allow Packets From Any Source To Any Destination And Any Port/ }
+    @over_permissive = @fwparse.rules.select { |r| r[:table] =~ /rule allowing|rules allowing/ }
     @sensitive       = @fwparse.rules.select { |r| r[:title] =~ /Potentially Sensitive Services/ }
     @nologging       = @fwparse.rules.select { |r| r[:title] =~ /Configured Without Logging/ }
     @legacy          = @fwparse.rules.select { |r| r[:title] =~ /Potentially Unnecessary Services/ }
@@ -203,6 +199,7 @@ class Sort_data
     # @fwparse.rules.each { |r| puts r[:title]}
     # puts @fwparse.rules
     # puts @over_permissive
+    puts @permitall
     # puts @permit
   end
 
