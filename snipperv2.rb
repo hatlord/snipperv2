@@ -112,7 +112,6 @@ class Parsexml
       @fwpol.xpath('//document/report/part/section').each do |title|
         rules = {}
         rules[:title]  = title.xpath('@title').text
-        #Device name in here so we can do multi device reviews?
       
         title.xpath('./section/table').each do |info|
           rules[:table]    = info.xpath('@title').text
@@ -138,7 +137,6 @@ class Parsexml
         end
       end
     end
-    # @rule_array.each { |r| puts "#{r[:title]},#{r[:table]},#{r[:name]},#{r[:active]},#{r[:action]},#{r[:src]},#{r[:srcprt]},#{r[:dst]},#{r[:dport]},#{r[:srvc]},#{r[:log]}"}
   end
 
   def checkpoint
@@ -199,7 +197,12 @@ class Parsexml
         end
       end
     end
-    # @rule_array.each { |r| puts "#{r[:title]},#{r[:table]},#{r[:name]},#{r[:action]},#{r[:src]}#{r[:dst]},#{r[:srvc]},#{r[:log]}"}
+  end
+
+  def norules
+    if @fwpol.xpath('//document/report/part/section/@title').text =~ /No Network Filtering Rules Were Configured/
+      puts "NO FIREWALL RULES WERE CONFIGURED - DID SOMETHING GO WRONG?".red.bold
+    end
   end
 
   def rules
@@ -215,8 +218,7 @@ class Output
   end
 
   def build_arrays
-    #may need to break these out into indivudual methods or i won't be able to access the arrays!!
-
+  
     @adminsrv        = @fwparse.rules.select { |r| r[:title] =~ /Allow Access To Administrative Services/ }
     @plaintext       = @fwparse.rules.select { |r| r[:title] =~ /Access To Clear-Text Protocol/ }
     @permitall       = @fwparse.rules.select { |r| r[:title] =~ /Allow Packets From Any Source To Any Destination And Any Port/ }
@@ -228,26 +230,44 @@ class Output
 
   end
 
-  def createcsv
-    if @fwparse.rules
-      Dir.mkdir("#{Dir.home}/Documents/Snipper_Out/") unless File.exists?("#{Dir.home}/Documents/Snipper_Out/")
-      @test = File.new("#{Dir.home}/Documents/Snipper_Out/testing.csv", 'w+')
-    end
+  def admin_fix
+    @adminsrv.each { |a| @adminsrv.delete_if { |z| z[:srvc] == "Any"} }
+    @adminsrv.each { |a| @adminsrv.delete_if { |z| z[:dport] == "Any"} }
+  end
+
+  def plain_fix
+    @plaintext.each { |p| @plaintext.delete_if { |z| z[:srvc] == "Any"} }
+    @plaintext.each { |p| @plaintext.delete_if { |z| z[:dport] == "Any"} }
+  end
+
+  def create_file
+    Dir.mkdir("#{Dir.home}/Documents/Snipper_Out/") unless File.exists?("#{Dir.home}/Documents/Snipper_Out/")
+    @file    = "#{@fwparse.device[:type]}_#{Time.now.strftime("%d%b%Y_%H%M%S")}"
+    @test    = File.new("#{Dir.home}/Documents/Snipper_Out/#{@file}.csv", 'w+')
   end
 
   def generate_data
-    adminstring = CSV.generate do |csv|
-      csv << @adminsrv.first.keys if !@adminsrv.empty? #Avoids nil errors when creating.
-      @adminsrv.each { |row| csv << row.values }
-    end
-    @test.puts(adminstring)
+    if @fwparse.rules
+      @adminstring = CSV.generate do |csv|
+        csv << @adminsrv.first.keys if !@adminsrv.empty? 
+          @adminsrv.each { |row| csv << row.values }
+      end
+      @plainstring = CSV.generate do |csv|
+        csv << @plaintext.first.keys if !@plaintext.empty?
+          @plaintext.each { |row| csv << row.values }
+      end
+    end   
+  end
+
+  def write_data #working
+    @test.puts "Administrative Service Rules"
+    @test.puts(@adminstring)
+    @test.puts "\n\nPlaintext Service Rules"
+    @test.puts(@plainstring)
     @test.close
   end
 
 end
-
-#This class will deal with output to other classes/files/console
-
 
 
 fwparse = Parsexml.new
@@ -255,6 +275,7 @@ fwparse.device_type
 fwparse.cisco
 fwparse.checkpoint
 fwparse.other
+fwparse.norules
 fwparse.users
 fwparse.net_services
 fwparse.auditrec
@@ -263,8 +284,11 @@ fwparse.vulns
 
 output = Output.new(fwparse)
 output.build_arrays
-output.createcsv
+output.admin_fix
+output.plain_fix
+output.create_file
 output.generate_data
+output.write_data
 
 
 # printer = Output.new(fwparse)
