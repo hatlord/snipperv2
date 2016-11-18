@@ -32,9 +32,9 @@ class Parsexml
 
   def device_supported
     if @device[:type] =~ /Cisco|Checkpoint|Alteon|Juniper|Watchguard|Fortigate|Dell/
-      puts "DEVICE SUPPORTED - CONTINUING....".green.bold
+      puts "#{@device[:type].upcase} SUPPORTED - CONTINUING....".green.bold
     else
-      puts "DEVICE UNSUPPORTED - EXITING :( - Speak to Rich".red.bold
+      puts "#{@device[:type].upcase} UNSUPPORTED - EXITING :( - Speak to Rich".red.bold
       exit
     end
   end
@@ -137,7 +137,11 @@ class Parsexml
                 rules[:dst]    = item.xpath('./tablecell[7]/item').map(&:text).join("\r")
                 rules[:dport]  = item.xpath('./tablecell[8]/item').map(&:text).join("\r")
                 rules[:srvc]   = item.xpath('./tablecell[9]/item').map(&:text).join("\r")
+                rules[:combo]  = rules[:dport] + rules [:srvc]
                 rules[:log]    = item.xpath('./tablecell[10]/item').text
+                if !rules[:proto].empty? and rules[:dport] !~ /[Group]/
+                  rules[:combo] = rules[:proto] + "/" + rules[:dport] 
+                end
 
                 @rule_array << rules.dup
             #cisco appears to populate EITHER dport or srvc. Need to write logic when we print to say print the other if empty
@@ -234,32 +238,42 @@ class Output
     @sensitive       = @fwparse.rules.select { |r| r[:title] =~ /Potentially Sensitive Services/ }
     @nologging       = @fwparse.rules.select { |r| r[:title] =~ /Configured Without Logging/ }
     @legacy          = @fwparse.rules.select { |r| r[:title] =~ /Potentially Unnecessary Services/ }
-    @norules         = @fwparse.rules.select { |r| r[:title] =~ /No Network Filtering Rules Were Configured/ } #Need to find a config that this will work on (New SYSTEM/ADMIN)
+    @norules         = @fwparse.rules.select { |r| r[:title] =~ /No Network Filtering Rules Were Configured/ }
   end
 
   def admin_fix
     @adminsrv.each { |a| @adminsrv.delete_if { |z| z[:srvc] == "Any"} }
     @adminsrv.each { |a| @adminsrv.delete_if { |z| z[:dport] == "Any"} }
+    @adminsrv.each { |a| a[:aclname] = a[:ref].gsub(/FILTER.BLACKLIST.ADMIN/, '')}
+    # @adminsrv.each { |a| if !a[:proto].empty? and a[:dport] !~ /[Group]/ then a[:combo] = a[:proto] + "/" + a[:dport] end }
   end
 
   def plain_fix
     @plaintext.each { |p| @plaintext.delete_if { |z| z[:srvc] == "Any"} }
     @plaintext.each { |p| @plaintext.delete_if { |z| z[:dport] == "Any"} }
+    @plaintext.each { |p| p[:aclname] = p[:ref].gsub(/FILTER.BLACKLIST.CLEARTEXT/, '')}
   end
 
   def create_file
     Dir.mkdir("#{Dir.home}/Documents/Snipper_Out/") unless File.exists?("#{Dir.home}/Documents/Snipper_Out/")
     @file    = "#{@fwparse.device[:type]}_#{Time.now.strftime("%d%b%Y_%H%M%S")}"
     @test    = File.new("#{Dir.home}/Documents/Snipper_Out/#{@file}.csv", 'w+')
+    puts "\nOutput written to #{@test.path}".light_blue.bold
+  end
+
+  def headers
+    #Headers will be defined here
   end
 
   def generate_data
     #Need to add some logic in here to only output the rows we are interested in
     #Also needs per-device-type logic
+    #Should I only add the elements we need to the hash? What if we need them later?
     if @fwparse.rules
       @adminstring = CSV.generate do |csv|
-        csv << @adminsrv.first.keys if !@adminsrv.empty? 
-          @adminsrv.each { |row| csv << row.values }
+        csv << ['NipperTable', 'ACL/Zone/Interface', 'RuleNo/Name', 'Source', 'Destination', 'DestPort/Service' ]
+          # @adminsrv.each { |row| csv << row.values }
+          @adminsrv.each { |row| csv << [row[:table], row[:aclname], row[:name], row[:src], row[:dst], row[:combo]] } #works perfectly
       end
       @plainstring = CSV.generate do |csv|
         csv << @plaintext.first.keys if !@plaintext.empty?
@@ -268,7 +282,7 @@ class Output
     end   
   end
 
-  def write_data #working
+  def write_data
     @test.puts "Administrative Service Rules"
     @test.puts(@adminstring)
     @test.puts "\n\nPlaintext Service Rules"
