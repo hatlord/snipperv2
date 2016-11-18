@@ -31,7 +31,7 @@ class Parsexml
   end
 
   def device_supported
-    if @device[:type] =~ /Cisco|Checkpoint|Alteon|Juniper|Watchguard|Fortigate|Dell/
+    if @device[:type] =~ /Cisco|Checkpoint|Alteon|Juniper|Watchguard|Fortigate|Dell|Palo/
       puts "#{@device[:type].upcase} SUPPORTED - CONTINUING....".green.bold
     else
       puts "#{@device[:type].upcase} UNSUPPORTED - EXITING :( - Speak to Rich".red.bold
@@ -117,7 +117,7 @@ class Parsexml
   end
 
   def cisco
-    if @device[:type] =~ /Cisco/i
+    if @device[:type] =~ /Cisco/
       @fwpol.xpath('//document/report/part/section').each do |title|
         rules = {}
         rules[:title]  = title.xpath('@title').text
@@ -137,14 +137,14 @@ class Parsexml
                 rules[:dst]    = item.xpath('./tablecell[7]/item').map(&:text).join("\r")
                 rules[:dport]  = item.xpath('./tablecell[8]/item').map(&:text).join("\r")
                 rules[:srvc]   = item.xpath('./tablecell[9]/item').map(&:text).join("\r")
-                rules[:combo]  = rules[:dport] + rules [:srvc]
                 rules[:log]    = item.xpath('./tablecell[10]/item').text
+                rules[:combo]  = rules[:dport] + rules [:srvc]
                 if !rules[:proto].empty? and rules[:dport] !~ /[Group]/
                   rules[:combo] = rules[:proto] + "/" + rules[:dport] 
                 end
 
                 @rule_array << rules.dup
-            #cisco appears to populate EITHER dport or srvc. Need to write logic when we print to say print the other if empty
+
             end
           end
         end
@@ -154,7 +154,7 @@ class Parsexml
 
   def checkpoint
     if @device[:type] =~ /Checkpoint|Alteon/
-    @fwpol.xpath('//document/report/part/section').each do |title|
+      @fwpol.xpath('//document/report/part/section').each do |title|
         rules = {}
         rules[:title]  = title.xpath('@title').text
 
@@ -173,8 +173,8 @@ class Parsexml
                 rules[:time]      = item.xpath('./tablecell[7]/item').map(&:text).join("\r")
                 rules[:install]   = item.xpath('./tablecell[8]/item').map(&:text).join("\r")
                 rules[:through]   = item.xpath('./tablecell[9]/item').map(&:text).join("\r")
-                rules[:combo]     = rules[:srvc]
                 rules[:log]       = item.xpath('./tablecell[10]/item').map(&:text).join("\r")
+                rules[:combo]     = rules[:srvc]
 
                 @rule_array << rules.dup 
 
@@ -185,8 +185,37 @@ class Parsexml
     end
   end
 
+  def paloalto
+    if @device[:type] =~ /Palo Alto/
+      @fwpol.xpath('//document/report/part/section').each do |title|
+        rules = {}
+        rules[:title]  = title.xpath('@title').text
+
+        title.xpath('./section/table').each do |info|
+          rules[:table]    = info.xpath('@title').text
+          rules[:ref]      = info.xpath('@ref').text
+
+            info.xpath('./tablebody/tablerow').each do |item|
+              if rules[:ref] =~ /FILTER\./
+                rules[:name]      = item.xpath('./tablecell[1]/item').text
+                rules[:active]    = item.xpath('./tablecell[2]/item').text
+                rules[:action]    = item.xpath('./tablecell[3]/item').text
+                rules[:src]       = item.xpath('./tablecell[4]/item').map(&:text).join("\r")
+                rules[:dst]       = item.xpath('./tablecell[5]/item').map(&:text).join("\r")
+                rules[:srvc]      = item.xpath('./tablecell[6]/item').map(&:text).join("\r")
+                rules[:combo]     = rules[:srvc]
+
+                @rule_array << rules.dup
+
+            end
+          end
+        end
+      end
+    end
+  end
+
   def other
-    if @device[:type] !~ /Cisco|Alteon|Checkpoint/i
+    if @device[:type] !~ /Cisco|Alteon|Checkpoint|Palo/i
       @fwpol.xpath('//document/report/part/section').each do |title|
         rules = {}
         rules[:title]  = title.xpath('@title').text
@@ -202,8 +231,8 @@ class Parsexml
                 rules[:src]    = item.xpath('./tablecell[3]/item').map(&:text).join("\r")
                 rules[:dst]    = item.xpath('./tablecell[4]/item').map(&:text).join("\r")
                 rules[:srvc]   = item.xpath('./tablecell[5]/item').map(&:text).join("\r")
-                rules[:combo]  = rules[:srvc]
                 rules[:log]    = item.xpath('./tablecell[6]/item').map(&:text).join("\r")
+                rules[:combo]  = rules[:srvc]
 
                 @rule_array << rules.dup 
 
@@ -258,29 +287,45 @@ class Output
   def create_file
     Dir.mkdir("#{Dir.home}/Documents/Snipper_Out/") unless File.exists?("#{Dir.home}/Documents/Snipper_Out/")
     @file    = "#{@fwparse.device[:type]}_#{Time.now.strftime("%d%b%Y_%H%M%S")}"
-    @test    = File.new("#{Dir.home}/Documents/Snipper_Out/#{@file}.csv", 'w+')
-    puts "\nOutput written to #{@test.path}".light_blue.bold
+    @csvfile = File.new("#{Dir.home}/Documents/Snipper_Out/#{@file}.csv", 'w+')
+    puts "\nOutput written to #{@csvfile.path}".light_blue.bold
+  end
+
+  def headers
+    @headers = ['NipperTable', 'ACL/Zone/Interface/Policy', 'RuleNo/Name', 'Source', 'Destination', 'DestPort/Service']
   end
 
   def generate_data
     if @fwparse.rules
       @adminstring = CSV.generate do |csv|
-        csv << ['NipperTable', 'ACL/Zone/Interface/Policy', 'RuleNo/Name', 'Source', 'Destination', 'DestPort/Service' ]
+        csv << @headers
           @adminsrv.each { |row| csv << [row[:table], row[:aclname], row[:name], row[:src], row[:dst], row[:combo]] }
       end
       @plainstring = CSV.generate do |csv|
-        csv << @plaintext.first.keys if !@plaintext.empty?
+        csv << @headers
           @plaintext.each { |row| csv << [row[:table], row[:aclname], row[:name], row[:src], row[:dst], row[:combo]] }
+      end
+      @permissivestring = CSV.generate do |csv|
+        csv << @headers
+          @over_permissive.each { |row| csv << [row[:table], row[:aclname], row[:name], row[:src], row[:dst], row[:combo]] }
       end
     end   
   end
 
   def write_data
-    @test.puts "Administrative Service Rules"
-    @test.puts(@adminstring)
-    @test.puts "\n\nPlaintext Service Rules"
-    @test.puts(@plainstring)
-    @test.close
+    if !@over_permissive.empty?
+      @csvfile.puts"\n\nOverly Permissive Rules"
+      @csvfile.puts(@permissivestring)
+    end
+    if !@plaintext.empty?
+      @csvfile.puts "\n\nPlaintext Service Rules"
+      @csvfile.puts(@plainstring)
+    end
+    if !@adminsrv.empty?
+      @csvfile.puts "Administrative Service Rules"
+      @csvfile.puts(@adminstring)
+    end
+    @csvfile.close
   end
 
 end
@@ -291,6 +336,7 @@ fwparse.device_type
 fwparse.device_supported
 fwparse.cisco
 fwparse.checkpoint
+fwparse.paloalto
 fwparse.other
 fwparse.norules
 fwparse.users
@@ -303,5 +349,6 @@ output.build_arrays
 output.admin_fix
 output.plain_fix
 output.create_file
+output.headers
 output.generate_data
 output.write_data
