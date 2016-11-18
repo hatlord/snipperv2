@@ -26,7 +26,16 @@ class Parsexml
       @device[:type]     = intro.xpath("./information/devices/device/@type").text
       @device[:os]       = intro.xpath("./information/devices/device/@os").text
       @device[:version]  = intro.xpath("./information/devices/device/@osversion").text
-      # puts "#{@device[:name]}\t#{@device[:type]}\t#{@device[:os]}\t#{@device[:version]}".red.bold
+      puts "#{@device[:name]}\t#{@device[:type]}\t#{@device[:os]}\t#{@device[:version]}".light_blue.bold
+    end
+  end
+
+  def device_supported
+    if @device[:type] =~ /Cisco|Checkpoint|Alteon|Juniper|Watchguard|Fortigate|Dell/
+      puts "DEVICE SUPPORTED - CONTINUING....".green.bold
+    else
+      puts "DEVICE UNSUPPORTED - EXITING :( - Speak to Rich".red.bold
+      exit
     end
   end
 
@@ -217,8 +226,7 @@ class Output
     @fwparse = fwparse
   end
 
-  def build_arrays
-  
+  def build_arrays  
     @adminsrv        = @fwparse.rules.select { |r| r[:title] =~ /Allow Access To Administrative Services/ }
     @plaintext       = @fwparse.rules.select { |r| r[:title] =~ /Access To Clear-Text Protocol/ }
     @permitall       = @fwparse.rules.select { |r| r[:title] =~ /Allow Packets From Any Source To Any Destination And Any Port/ }
@@ -227,7 +235,6 @@ class Output
     @nologging       = @fwparse.rules.select { |r| r[:title] =~ /Configured Without Logging/ }
     @legacy          = @fwparse.rules.select { |r| r[:title] =~ /Potentially Unnecessary Services/ }
     @norules         = @fwparse.rules.select { |r| r[:title] =~ /No Network Filtering Rules Were Configured/ } #Need to find a config that this will work on (New SYSTEM/ADMIN)
-
   end
 
   def admin_fix
@@ -247,6 +254,8 @@ class Output
   end
 
   def generate_data
+    #Need to add some logic in here to only output the rows we are interested in
+    #Also needs per-device-type logic
     if @fwparse.rules
       @adminstring = CSV.generate do |csv|
         csv << @adminsrv.first.keys if !@adminsrv.empty? 
@@ -272,6 +281,7 @@ end
 
 fwparse = Parsexml.new
 fwparse.device_type
+fwparse.device_supported
 fwparse.cisco
 fwparse.checkpoint
 fwparse.other
@@ -289,7 +299,3 @@ output.plain_fix
 output.create_file
 output.generate_data
 output.write_data
-
-
-# printer = Output.new(fwparse)
-# printer.printme
