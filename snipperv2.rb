@@ -173,6 +173,7 @@ class Parsexml
                 rules[:time]      = item.xpath('./tablecell[7]/item').map(&:text).join("\r")
                 rules[:install]   = item.xpath('./tablecell[8]/item').map(&:text).join("\r")
                 rules[:through]   = item.xpath('./tablecell[9]/item').map(&:text).join("\r")
+                rules[:combo]     = rules[:srvc]
                 rules[:log]       = item.xpath('./tablecell[10]/item').map(&:text).join("\r")
 
                 @rule_array << rules.dup 
@@ -201,6 +202,7 @@ class Parsexml
                 rules[:src]    = item.xpath('./tablecell[3]/item').map(&:text).join("\r")
                 rules[:dst]    = item.xpath('./tablecell[4]/item').map(&:text).join("\r")
                 rules[:srvc]   = item.xpath('./tablecell[5]/item').map(&:text).join("\r")
+                rules[:combo]  = rules[:srvc]
                 rules[:log]    = item.xpath('./tablecell[6]/item').map(&:text).join("\r")
 
                 @rule_array << rules.dup 
@@ -245,7 +247,6 @@ class Output
     @adminsrv.each { |a| @adminsrv.delete_if { |z| z[:srvc] == "Any"} }
     @adminsrv.each { |a| @adminsrv.delete_if { |z| z[:dport] == "Any"} }
     @adminsrv.each { |a| a[:aclname] = a[:ref].gsub(/FILTER.BLACKLIST.ADMIN/, '')}
-    # @adminsrv.each { |a| if !a[:proto].empty? and a[:dport] !~ /[Group]/ then a[:combo] = a[:proto] + "/" + a[:dport] end }
   end
 
   def plain_fix
@@ -261,23 +262,15 @@ class Output
     puts "\nOutput written to #{@test.path}".light_blue.bold
   end
 
-  def headers
-    #Headers will be defined here
-  end
-
   def generate_data
-    #Need to add some logic in here to only output the rows we are interested in
-    #Also needs per-device-type logic
-    #Should I only add the elements we need to the hash? What if we need them later?
     if @fwparse.rules
       @adminstring = CSV.generate do |csv|
-        csv << ['NipperTable', 'ACL/Zone/Interface', 'RuleNo/Name', 'Source', 'Destination', 'DestPort/Service' ]
-          # @adminsrv.each { |row| csv << row.values }
-          @adminsrv.each { |row| csv << [row[:table], row[:aclname], row[:name], row[:src], row[:dst], row[:combo]] } #works perfectly
+        csv << ['NipperTable', 'ACL/Zone/Interface/Policy', 'RuleNo/Name', 'Source', 'Destination', 'DestPort/Service' ]
+          @adminsrv.each { |row| csv << [row[:table], row[:aclname], row[:name], row[:src], row[:dst], row[:combo]] }
       end
       @plainstring = CSV.generate do |csv|
         csv << @plaintext.first.keys if !@plaintext.empty?
-          @plaintext.each { |row| csv << row.values }
+          @plaintext.each { |row| csv << [row[:table], row[:aclname], row[:name], row[:src], row[:dst], row[:combo]] }
       end
     end   
   end
@@ -304,7 +297,6 @@ fwparse.users
 fwparse.net_services
 fwparse.auditrec
 fwparse.vulns
-
 
 output = Output.new(fwparse)
 output.build_arrays
