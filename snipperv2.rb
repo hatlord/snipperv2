@@ -269,19 +269,27 @@ class Output
     @sensitive       = @fwparse.rules.select { |r| r[:title] =~ /Potentially Sensitive Services/ }
     @nologging       = @fwparse.rules.select { |r| r[:title] =~ /Configured Without Logging/ }
     @legacy          = @fwparse.rules.select { |r| r[:title] =~ /Potentially Unnecessary Services/ }
-    @norules         = @fwparse.rules.select { |r| r[:title] =~ /No Network Filtering Rules Were Configured/ }
+  end
+
+  def permitall_fix
+    @permitall.each { |r| r[:aclname] = r[:table].match(/(?<=ACL )(.*)(?= rule)/)}
   end
 
   def admin_fix
-    @adminsrv.each { |a| @adminsrv.delete_if { |z| z[:srvc] == "Any"} }
-    @adminsrv.each { |a| @adminsrv.delete_if { |z| z[:dport] == "Any"} }
-    @adminsrv.each { |a| a[:aclname] = a[:ref].gsub(/FILTER.BLACKLIST.ADMIN/, '')}
+    @adminsrv.delete_if { |r| r[:combo] == "Any" }
+    @adminsrv.delete_if { |r| r[:combo] == "[Host] Any" }
+    @adminsrv.each { |r| r[:aclname] = r[:ref].gsub(/FILTER.BLACKLIST.ADMIN/, '')}
   end
 
   def plain_fix
-    @plaintext.each { |p| @plaintext.delete_if { |z| z[:srvc] == "Any"} }
-    @plaintext.each { |p| @plaintext.delete_if { |z| z[:dport] == "Any"} }
-    @plaintext.each { |p| p[:aclname] = p[:ref].gsub(/FILTER.BLACKLIST.CLEARTEXT/, '')}
+    @plaintext.delete_if { |r| r[:combo] == "Any" }
+    @plaintext.delete_if { |r| r[:combo] == "[Host] Any" }
+    @plaintext.each { |r| r[:aclname] = r[:ref].gsub(/FILTER.BLACKLIST.CLEARTEXT/, '')}
+  end
+
+  def over_permissive_fix
+    @over_permissive.delete_if { |r| r[:title] =~ /Filter Rules Allow Packets From Any Source To Any Destination And Any Port/ } #removes permit all, which will be in another function
+    @over_permissive.each { |r| r[:aclname] = r[:table].match(/(?<=ACL )(.*)(?= rule)/)} #regex matches everything between 'ACL ' and ' rule' = ACLNAME
   end
 
   def create_file
@@ -297,6 +305,9 @@ class Output
 
   def generate_data
     if @fwparse.rules
+      @permitallstring = CSV.generate do |csv|
+        @permitall.each { |row| csv << [row[:table], row[:aclname], row[:name], row[:src], row[:dst], row[:combo]] }
+      end
       @adminstring = CSV.generate do |csv|
         csv << @headers
           @adminsrv.each { |row| csv << [row[:table], row[:aclname], row[:name], row[:src], row[:dst], row[:combo]] }
@@ -313,16 +324,20 @@ class Output
   end
 
   def write_data
+    if !@permitall.empty?
+      @csvfile.puts "@@@@@@@@@@RULES ALLOWING ALL TRAFFIC@@@@@@@@@@"
+      @csvfile.puts(@permitallstring)
+    end
     if !@over_permissive.empty?
-      @csvfile.puts"\n\nOverly Permissive Rules"
+      @csvfile.puts "\n\n\n\n@@@@@@@@@@OVERLY PERMISSIVE RULES@@@@@@@@@@"
       @csvfile.puts(@permissivestring)
     end
     if !@plaintext.empty?
-      @csvfile.puts "\n\nPlaintext Service Rules"
+      @csvfile.puts "\n\n\n\n@@@@@@@@@@PLAINTEXT SERVICES@@@@@@@@@@"
       @csvfile.puts(@plainstring)
     end
     if !@adminsrv.empty?
-      @csvfile.puts "Administrative Service Rules"
+      @csvfile.puts "\n\n\n\n@@@@@@@@@@Administrative Service Rules@@@@@@@@@@"
       @csvfile.puts(@adminstring)
     end
     @csvfile.close
@@ -346,8 +361,10 @@ fwparse.vulns
 
 output = Output.new(fwparse)
 output.build_arrays
+output.permitall_fix
 output.admin_fix
 output.plain_fix
+output.over_permissive_fix
 output.create_file
 output.headers
 output.generate_data
