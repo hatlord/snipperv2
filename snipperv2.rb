@@ -273,7 +273,11 @@ class Output
 
   def permitall_fix
     if @fwparse.device[:type] =~ /Cisco/
-      @permitall.each { |r| r[:aclname] = r[:table].match(/(?<=ACL )(.*)(?= rule)/)}
+      @permitall.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/)}
+    elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
+      @permitall.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=rule)/)}
+    elsif @fwparse.device[:type] =~ /Palo/
+      @permitall.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/)}
     else
       @permitall.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/)}
     end
@@ -282,28 +286,71 @@ class Output
   def over_permissive_fix
     @over_permissive.delete_if { |r| r[:title] =~ /Filter Rules Allow Packets From Any Source To Any Destination And Any Port/ }
     if @fwparse.device[:type] =~ /Cisco/
-      @over_permissive.each { |r| r[:aclname] = r[:table].match(/(?<=ACL )(.*)(?= rule)/)}
+      @over_permissive.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/)}
+    elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
+      @over_permissive.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=rule)/)}
+    elsif @fwparse.device[:type] =~ /Palo/
+      @over_permissive.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/)}
     else
       @over_permissive.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/)}
     end
   end
 
   def plain_fix
-    @plaintext.delete_if { |r| r[:combo] == "Any" }
-    @plaintext.delete_if { |r| r[:combo] == "[Host] Any" }
-    @plaintext.each { |r| r[:aclname] = r[:ref].gsub(/FILTER.BLACKLIST.CLEARTEXT/, '') }
+    if @fwparse.device[:type] =~ /Cisco/
+      @plaintext.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= clear)/)}
+    elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
+      @plaintext.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=clear)/)}
+    elsif @fwparse.device[:type] =~ /Palo/
+      @plaintext.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/)}
+    else
+      @plaintext.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/)}
+    end
+      @plaintext.delete_if { |r| r[:combo] == "Any" }
+      @plaintext.delete_if { |r| r[:combo] == "[Host] Any" }
   end
 
   def admin_fix
-    @adminsrv.delete_if { |r| r[:combo] == "Any" }
-    @adminsrv.delete_if { |r| r[:combo] == "[Host] Any" }
-    @adminsrv.each { |r| r[:aclname] = r[:ref].gsub(/FILTER.BLACKLIST.ADMIN/, '') }
+    if @fwparse.device[:type] =~ /Cisco/
+      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= administrative)/)}
+    elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
+      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=administrative)/)}
+    elsif @fwparse.device[:type] =~ /Palo/
+      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/)}
+    else
+      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/)}
+    end
+      @adminsrv.delete_if { |r| r[:combo] == "Any" }
+      @adminsrv.delete_if { |r| r[:combo] == "[Host] Any" }
   end
 
   def sensitive_fix
-    @sensitive.delete_if { |r| r[:combo] == "Any" }
-    @sensitive.delete_if { |r| r[:combo] == "[Host] Any" }
-    @sensitive.each { |r| r[:aclname] = r[:ref].gsub(/FILTER.BLACKLIST.SENSITIVE/, '') }
+    if @fwparse.device[:type] =~ /Cisco/
+      @sensitive.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= sensitive)/)}
+    elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
+      @sensitive.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=sensitive)/)}
+    elsif @fwparse.device[:type] =~ /Palo/
+      @sensitive.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/)}
+    else
+      @sensitive.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/)}
+    end
+      @sensitive.delete_if { |r| r[:combo] == "Any" }
+      @sensitive.delete_if { |r| r[:combo] == "[Host] Any" }
+  end
+
+  def nolog_fix
+    if @fwparse.device[:type] =~ /Cisco/
+      @nologging.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/)}
+    elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
+      @nologging.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=rule)/)}
+    elsif @fwparse.device[:type] =~ /Palo/
+      @nologging.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/)}
+    else
+      @nologging.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/)}
+    end
+  end
+
+  def legacy
   end
 
   def create_file
@@ -320,7 +367,8 @@ class Output
   def generate_data
     if @fwparse.rules
       @permitallstring = CSV.generate do |csv|
-        @permitall.each { |row| csv << [row[:table], row[:aclname], row[:name], row[:src], row[:dst], row[:combo]] }
+        csv << @headers
+          @permitall.each { |row| csv << [row[:table], row[:aclname], row[:name], row[:src], row[:dst], row[:combo]] }
       end
       @permissivestring = CSV.generate do |csv|
         csv << @headers
@@ -338,6 +386,14 @@ class Output
         csv << @headers
           @sensitive.each { |row| csv << [row[:table], row[:aclname], row[:name], row[:src], row[:dst], row[:combo]] }
       end
+      @nologstring = CSV.generate do |csv|
+        csv << @headers
+          @nologging.each { |row| csv << [row[:table], row[:aclname], row[:name], row[:src], row[:dst], row[:combo]] }
+      end
+      @legacystring = CSV.generate do |csv|
+        csv << @headers
+         @legacy.each { |row| csv << [row[:table], row[:aclname], row[:name], row[:src], row[:dst], row[:combo]] }
+       end
     end   
   end
 
@@ -361,6 +417,10 @@ class Output
     if !@sensitive.empty?
       @csvfile.puts "\n\n\n\n@@@@@@@@@@SENSITIVE SERVICE RULES@@@@@@@@@@"
       @csvfile.puts(@sensitivestring)
+    end
+    if !@nologging.empty?
+      @csvfile.puts "\n\n\n\n@@@@@@@@@@RULES CONFIGURED WITHOUT LOGGING@@@@@@@@@@"
+      @csvfile.puts(@nologstring)
     end
     @csvfile.close
   end
@@ -388,6 +448,7 @@ output.over_permissive_fix
 output.plain_fix
 output.admin_fix
 output.sensitive_fix
+output.nolog_fix
 output.create_file
 output.headers
 output.generate_data
