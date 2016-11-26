@@ -117,8 +117,6 @@ class Parsexml
   end
 
   def cisco
-    # counter = @fwpol.xpath('//document/report/part/section[2]/section/table/headings/heading').count
-    # puts @fwpol.xpath('//document/report/part/section[2]/section/table/headings/heading').count #THIS WORKS
     if @device[:type] =~ /Cisco/
       @fwpol.xpath('//document/report/part/section').each do |title|
         rules = {}
@@ -138,8 +136,8 @@ class Parsexml
                 rules[:srcprt] = item.xpath('./tablecell[6]/item').map(&:text).join("\r")
                 rules[:dst]    = item.xpath('./tablecell[7]/item').map(&:text).join("\r")
                 rules[:dport]  = item.xpath('./tablecell[8]/item').map(&:text).join("\r")
-                rules[:nine]   = item.xpath('./tablecell[9]/item').map(&:text).join("\r")
-                rules[:ten]    = item.xpath('./tablecell[10]/item').map(&:text).join("\r")
+                rules[:nine]   = item.xpath('./tablecell[9]/item').map(&:text).join("\r") #could be service or log
+                rules[:ten]    = item.xpath('./tablecell[10]/item').map(&:text).join("\r") #could be log or empty
 
                 @rule_array << rules.dup
 
@@ -150,42 +148,15 @@ class Parsexml
     end
   end
 
-  def counter
-    if @device[:type] =~ /Cisco/
-      @rule_array.each { |h| @counter = h.count}
-    end
-  end
-
   def cisco_fix
-    puts @counter
-    # if @device[:type] =~ /Cisco/
-    #   if @counter == 13
-    #     puts @counter
-    #   elsif
-    #     @counter == 12 #it does - the config i was checking for 12 in does not have headers as it does not have rules :/
-    #      puts @counter
-    #   end
-    # end
-  end
-
-  # def cisco_fix
-  #   #this function is broken when run using derbyshire config - log
-  #   if @device[:type] =~ /Cisco/
-  #     if @counter == 13
-  #       @rule_array.each do |rule|
-  #         rule[:srvc] = rule[:nine]
-  #         rule[:log]  = rule[:ten]
-  #         puts rule[:srvc]
-  #       end
-  #     else
-  #       rule[:log] = rule[:nine] #This isnt working
-  #     end
-  #   end
-  # end
-
-  def combo_ports
     if @device[:type] =~ /Cisco/
-      @rule_array.each { |rule| rule[:combo] = rule[:dport].to_s + rule[:srvc].to_s }
+      @rule_array.each do |rule|
+        if rule[:nine] != "N/A"
+          rule[:combo] = rule[:dport].to_s + rule[:nine].to_s
+        else
+          rule[:combo] = rule[:dport]
+        end
+      end
     end
   end
 
@@ -203,7 +174,7 @@ class Parsexml
     if @device[:type] =~ /Cisco/
       @rule_array.each do |rule|
         if !rule[:combo].start_with?('[Group]', 'ICMP', 'GRE', 'Any', 'ESP', 'AHP', 'AH' )
-          rule[:combo] = rule[:proto] + "/" + rule[:combo]
+          rule[:combo] = rule[:proto].to_s + "/" + rule[:dport].to_s
         end
       end
     end
@@ -319,7 +290,7 @@ class Output
   end
 
   def build_arrays  
-    @permitall       = @fwparse.rules.select { |r| r[:title] =~ /Allow Packets From Any Source To Any Destination And Any Port/ }
+    @permitall       = @fwparse.rules.select { |r| r[:title] =~ /Packets From Any Source To Any Destination And Any Port/i }
     @over_permissive = @fwparse.rules.select { |r| r[:table] =~ /rule allowing|rules allowing/ }
     @plaintext       = @fwparse.rules.select { |r| r[:title] =~ /Access To Clear-Text Protocol/ }
     @adminsrv        = @fwparse.rules.select { |r| r[:title] =~ /Allow Access To Administrative Services/ }
@@ -342,7 +313,7 @@ class Output
   end
 
   def over_permissive_fix
-    @over_permissive.delete_if { |r| r[:title] =~ /Filter Rules Allow Packets From Any Source To Any Destination And Any Port/ }
+    @over_permissive.delete_if { |r| r[:title] =~ /Packets From Any Source To Any Destination And Any Port/ }
     if @fwparse.device[:type] =~ /Cisco/
       @over_permissive.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/)}
     elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
@@ -499,9 +470,7 @@ fwparse = Parsexml.new
 fwparse.device_type
 fwparse.device_supported
 fwparse.cisco
-fwparse.counter
 fwparse.cisco_fix
-fwparse.combo_ports
 fwparse.proto
 fwparse.proto_port
 fwparse.checkpoint
