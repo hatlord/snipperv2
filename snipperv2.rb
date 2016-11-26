@@ -117,6 +117,8 @@ class Parsexml
   end
 
   def cisco
+    # counter = @fwpol.xpath('//document/report/part/section[2]/section/table/headings/heading').count
+    # puts @fwpol.xpath('//document/report/part/section[2]/section/table/headings/heading').count #THIS WORKS
     if @device[:type] =~ /Cisco/
       @fwpol.xpath('//document/report/part/section').each do |title|
         rules = {}
@@ -136,17 +138,72 @@ class Parsexml
                 rules[:srcprt] = item.xpath('./tablecell[6]/item').map(&:text).join("\r")
                 rules[:dst]    = item.xpath('./tablecell[7]/item').map(&:text).join("\r")
                 rules[:dport]  = item.xpath('./tablecell[8]/item').map(&:text).join("\r")
-                rules[:srvc]   = item.xpath('./tablecell[9]/item').map(&:text).join("\r")
-                rules[:log]    = item.xpath('./tablecell[10]/item').text
-                rules[:combo]  = rules[:dport] + rules [:srvc]
-                if !rules[:proto].empty? and rules[:dport] !~ /[Group]/
-                  rules[:combo] = rules[:proto] + "/" + rules[:dport] 
-                end
+                rules[:nine]   = item.xpath('./tablecell[9]/item').map(&:text).join("\r")
+                rules[:ten]    = item.xpath('./tablecell[10]/item').map(&:text).join("\r")
 
                 @rule_array << rules.dup
 
             end
           end
+        end
+      end
+    end
+  end
+
+  def counter
+    if @device[:type] =~ /Cisco/
+      @rule_array.each { |h| @counter = h.count}
+    end
+  end
+
+  def cisco_fix
+    puts @counter
+    # if @device[:type] =~ /Cisco/
+    #   if @counter == 13
+    #     puts @counter
+    #   elsif
+    #     @counter == 12 #it does - the config i was checking for 12 in does not have headers as it does not have rules :/
+    #      puts @counter
+    #   end
+    # end
+  end
+
+  # def cisco_fix
+  #   #this function is broken when run using derbyshire config - log
+  #   if @device[:type] =~ /Cisco/
+  #     if @counter == 13
+  #       @rule_array.each do |rule|
+  #         rule[:srvc] = rule[:nine]
+  #         rule[:log]  = rule[:ten]
+  #         puts rule[:srvc]
+  #       end
+  #     else
+  #       rule[:log] = rule[:nine] #This isnt working
+  #     end
+  #   end
+  # end
+
+  def combo_ports
+    if @device[:type] =~ /Cisco/
+      @rule_array.each { |rule| rule[:combo] = rule[:dport].to_s + rule[:srvc].to_s }
+    end
+  end
+
+  def proto
+    if @device[:type] =~ /Cisco/
+      @rule_array.each do |rule|
+        if rule[:combo].empty?
+          rule[:combo] = rule[:proto]
+        end
+      end
+    end
+  end
+
+  def proto_port
+    if @device[:type] =~ /Cisco/
+      @rule_array.each do |rule|
+        if !rule[:combo].start_with?('[Group]', 'ICMP', 'GRE', 'Any', 'ESP', 'AHP', 'AH' )
+          rule[:combo] = rule[:proto] + "/" + rule[:combo]
         end
       end
     end
@@ -271,6 +328,7 @@ class Output
     @legacy          = @fwparse.rules.select { |r| r[:title] =~ /Potentially Unnecessary Services/ }
   end
 
+
   def permitall_fix
     if @fwparse.device[:type] =~ /Cisco/
       @permitall.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/)}
@@ -350,7 +408,16 @@ class Output
     end
   end
 
-  def legacy
+  def legacy_fix
+    if @fwparse.device[:type] =~ /Cisco/
+      @legacy.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/)}
+    elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
+      @legacy.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=rule)/)}
+    elsif @fwparse.device[:type] =~ /Palo/
+      @legacy.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/)}
+    else
+      @legacy.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/)}
+    end
   end
 
   def create_file
@@ -432,6 +499,11 @@ fwparse = Parsexml.new
 fwparse.device_type
 fwparse.device_supported
 fwparse.cisco
+fwparse.counter
+fwparse.cisco_fix
+fwparse.combo_ports
+fwparse.proto
+fwparse.proto_port
 fwparse.checkpoint
 fwparse.paloalto
 fwparse.other
@@ -449,6 +521,7 @@ output.plain_fix
 output.admin_fix
 output.sensitive_fix
 output.nolog_fix
+output.legacy_fix
 output.create_file
 output.headers
 output.generate_data
