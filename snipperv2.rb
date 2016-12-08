@@ -8,7 +8,7 @@ require 'colorize'
 class Parsexml
 
   attr_reader :rule_array, :device, :vuln_array, :user_array
-  attr_reader :netw_srvc, :audit_rec
+  attr_reader :netw_srvc, :audit_rec, :dev_array
 
   def initialize
     @fwpol      = Nokogiri::XML(File.read(ARGV[0]))
@@ -18,6 +18,7 @@ class Parsexml
     @netw_srvc  = []
     @audit_rec  = []
     @device     = {}
+    @dev_array  = []
   end
 
   def device_type
@@ -26,15 +27,18 @@ class Parsexml
       @device[:type]     = intro.xpath("./information/devices/device/@type").text
       @device[:os]       = intro.xpath("./information/devices/device/@os").text
       @device[:version]  = intro.xpath("./information/devices/device/@osversion").text
+      @device[:fullos]   = @device[:os].to_s + " " + @device[:version].to_s
       puts "#{@device[:name]}\t#{@device[:type]}\t#{@device[:os]}\t#{@device[:version]}".light_blue.bold
+
+      @dev_array << @device.dup
     end
   end
 
   def device_supported
-    if @device[:type] =~ /Cisco|Checkpoint|Alteon|Juniper|Watchguard|Fortigate|Dell|Palo/
-      puts "#{@device[:type].upcase} SUPPORTED - CONTINUING....".green.bold
+    if @device[:type] =~ /Cisco|Checkpoint|Alteon|Juniper|Watchguard|Fortigate|Dell|Palo/i
+      puts "#{@device[:type].upcase} IS SUPPORTED - CONTINUING....".green.bold
     else
-      puts "#{@device[:type].upcase} UNSUPPORTED - EXITING :( - Speak to Rich".red.bold
+      puts "#{@device[:type].upcase} IS UNSUPPORTED - EXITING :( - Speak to Rich".red.bold
       exit
     end
   end
@@ -313,7 +317,7 @@ class Output
   end
 
   def over_permissive_fix
-    @over_permissive.delete_if { |r| r[:title] =~ /Packets From Any Source To Any Destination And Any Port/ }
+    @over_permissive.delete_if { |r| r[:title] =~ /Packets From Any Source To Any Destination And Any Port/i }
     if @fwparse.device[:type] =~ /Cisco/
       @over_permissive.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/)}
     elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
@@ -393,7 +397,7 @@ class Output
 
   def create_file
     Dir.mkdir("#{Dir.home}/Documents/Snipper_Out/") unless File.exists?("#{Dir.home}/Documents/Snipper_Out/")
-    @file    = "#{@fwparse.device[:type]}_#{Time.now.strftime("%d%b%Y_%H%M%S")}"
+    @file    = "#{@fwparse.device[:type].gsub(" ", "_")}_#{Time.now.strftime("%d%b%Y_%H%M%S")}"
     @csvfile = File.new("#{Dir.home}/Documents/Snipper_Out/#{@file}.csv", 'w+')
     puts "\nOutput written to #{@csvfile.path}".light_blue.bold
   end
@@ -403,7 +407,13 @@ class Output
   end
 
   def generate_data
-    if @fwparse.rules
+    if @fwparse.dev_array 
+      @devicestring = CSV.generate do |csv|
+        csv << ['Name', 'Type', 'OS']
+          @fwparse.dev_array.each { |row| csv << [row[:name], row[:type], row[:fullos]] }
+      end
+    end
+    if @fwparse.rules #need to add similar statements for each type to ensure no nil errors
       @permitallstring = CSV.generate do |csv|
         csv << @headers
           @permitall.each { |row| csv << [row[:table], row[:aclname], row[:name], row[:src], row[:dst], row[:combo]] }
@@ -436,28 +446,32 @@ class Output
   end
 
   def write_data
+    if !@fwparse.dev_array.empty?
+      @csvfile.puts "*********DEVICE DETAILS*********"
+      @csvfile.puts(@devicestring)
+    end
     if !@permitall.empty?
-      @csvfile.puts "@@@@@@@@@@RULES ALLOWING ALL TRAFFIC@@@@@@@@@@"
+      @csvfile.puts "\n\n\n\n*********RULES ALLOWING ALL TRAFFIC*********"
       @csvfile.puts(@permitallstring)
     end
     if !@over_permissive.empty?
-      @csvfile.puts "\n\n\n\n@@@@@@@@@@OVERLY PERMISSIVE RULES@@@@@@@@@@"
+      @csvfile.puts "\n\n\n\n*********OVERLY PERMISSIVE RULES*********"
       @csvfile.puts(@permissivestring)
     end
     if !@plaintext.empty?
-      @csvfile.puts "\n\n\n\n@@@@@@@@@@PLAINTEXT SERVICES@@@@@@@@@@"
+      @csvfile.puts "\n\n\n\n*********PLAINTEXT SERVICES*********"
       @csvfile.puts(@plainstring)
     end
     if !@adminsrv.empty?
-      @csvfile.puts "\n\n\n\n@@@@@@@@@@ADMINISTRATIVE SERVICE RULES@@@@@@@@@@"
+      @csvfile.puts "\n\n\n\n*********ADMINISTRATIVE SERVICE RULES*********"
       @csvfile.puts(@adminstring)
     end
     if !@sensitive.empty?
-      @csvfile.puts "\n\n\n\n@@@@@@@@@@SENSITIVE SERVICE RULES@@@@@@@@@@"
+      @csvfile.puts "\n\n\n\n*********SENSITIVE SERVICE RULES*********"
       @csvfile.puts(@sensitivestring)
     end
     if !@nologging.empty?
-      @csvfile.puts "\n\n\n\n@@@@@@@@@@RULES CONFIGURED WITHOUT LOGGING@@@@@@@@@@"
+      @csvfile.puts "\n\n\n\n*********RULES CONFIGURED WITHOUT LOGGING*********"
       @csvfile.puts(@nologstring)
     end
     @csvfile.close
