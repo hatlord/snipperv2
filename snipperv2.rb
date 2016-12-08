@@ -8,7 +8,7 @@ require 'colorize'
 class Parsexml
 
   attr_reader :rule_array, :device, :vuln_array, :user_array
-  attr_reader :netw_srvc, :audit_rec, :dev_array
+  attr_reader :netw_srvc, :audit_rec, :dev_array, :fwpol
 
   def initialize
     @fwpol      = Nokogiri::XML(File.read(ARGV[0]))
@@ -44,6 +44,7 @@ class Parsexml
   end
 
   def users
+    if @device[:type] !~ /Fortigate/i
     @fwpol.xpath('//document/report/part/section/section/section').each do |title|
       @userinfo = {}
       @userinfo[:title] = title.xpath('@title').text
@@ -56,6 +57,29 @@ class Parsexml
 
           @user_array << @userinfo.dup
 
+          end
+        end
+      end
+    end
+  end
+
+  def fortiusers
+    if @device[:type] =~ /Fortigate/i
+    @fwpol.xpath('//document/report/part/section/section/section').each do |title|
+      @userinfo = {}
+      @userinfo[:title] = title.xpath('@title').text
+
+      title.xpath('./table/tablebody/tablerow').each do |user|
+        if @userinfo[:title] == "Local Users"
+          @userinfo[:user]   = user.xpath('./tablecell[1]/item').text
+          @userinfo[:group]  = user.xpath('./tablecell[2]/item').text
+          @userinfo[:pass]   = user.xpath('./tablecell[3]/item').text
+          @userinfo[:priv]   = user.xpath('./tablecell[4]/item').text
+
+
+          @user_array << @userinfo.dup
+
+          end
         end
       end
     end
@@ -110,8 +134,9 @@ class Parsexml
           @vuln[:cve]        = issue.xpath('./tablecell[1]/item').text
           @vuln[:cvss]       = issue.xpath('./tablecell[2]/item').text
           @vuln[:severity]   = issue.xpath('./tablecell[3]/item').text
-          @vuln[:advisory]   = issue.xpath('./tablecell[6]/item').text
-          @vuln[:references] = issue.xpath('./tablecell[7]/item').text
+          @vuln[:advisory]   = issue.xpath('./tablecell[6]/item').map(&:text).join("\r")
+          @vuln[:references] = issue.xpath('./tablecell[7]/item').map(&:text).join("\r")
+          @vuln[:allrefs]    = @vuln[:advisory] + "\r" + @vuln[:references]
 
           @vuln_array << @vuln.dup
 
@@ -399,20 +424,50 @@ class Output
     Dir.mkdir("#{Dir.home}/Documents/Snipper_Out/") unless File.exists?("#{Dir.home}/Documents/Snipper_Out/")
     @file    = "#{@fwparse.device[:type].gsub(" ", "_")}_#{Time.now.strftime("%d%b%Y_%H%M%S")}"
     @csvfile = File.new("#{Dir.home}/Documents/Snipper_Out/#{@file}.csv", 'w+')
-    puts "\nOutput written to #{@csvfile.path}".light_blue.bold
+    puts "Output written to #{@csvfile.path}".light_blue.bold
   end
 
   def headers
     @headers = ['NipperTable', 'ACL/Zone/Interface/Policy', 'RuleNo/Name', 'Source', 'Destination', 'DestPort/Service']
   end
 
+  def user_headers
+    puts @fwparse.fwpol.xpath('//document/report/part/section/section/section/table[1]/title').text
+        # @fwpol.xpath('//document/report/part/section/section/section').each do |title|
+    # puts @fwparse.fwpol.xpath('//document/report/part/section/section/section/table/headings').text
+  end
+
   def generate_data
+    if @fwparse.user_array
+      @userstring = CSV.generate do |csv|
+        csv << ['Username', 'Password', 'Privileges']
+          @fwparse.user_array.each { |row| csv << [row[:user], row[:pass], row[:priv]] }
+        end
+      end
+    if @fwparse.netw_srvc
+      @servicestring = CSV.generate do |csv|
+        csv << ['Name', 'Status', 'Protocol', 'Port']
+          @fwparse.netw_srvc.each { |row| csv << [row[:name], row[:status], row[:proto], row[:port]] }
+        end
+      end
+    if @fwparse.vuln_array
+      @vulnstring = CSV.generate do |csv|
+        csv << ['CVE', 'Severity', 'CVSS', 'Advisorys/Refs']
+          @fwparse.vuln_array.each { |row| csv << [row[:cve], row[:severity], row[:cvss], row[:allrefs]] }
+        end
+      end
+    if @fwparse.audit_rec
+      @auditstring = CSV.generate do |csv|
+        csv << ['Issue', 'Rating', 'Recommendations', 'Device', 'Nipper Section']
+          @fwparse.audit_rec.each { |row| csv << [row[:issue], row[:rating], row[:recommend], row[:device], row[:section]] }
+        end
+      end
     if @fwparse.dev_array 
       @devicestring = CSV.generate do |csv|
         csv << ['Name', 'Type', 'OS']
           @fwparse.dev_array.each { |row| csv << [row[:name], row[:type], row[:fullos]] }
+        end
       end
-    end
     if @fwparse.rules #need to add similar statements for each type to ensure no nil errors
       @permitallstring = CSV.generate do |csv|
         csv << @headers
@@ -450,6 +505,10 @@ class Output
       @csvfile.puts "*********DEVICE DETAILS*********"
       @csvfile.puts(@devicestring)
     end
+    if !@fwparse.audit_rec.empty?
+      @csvfile.puts "\n\n\n\n*********Identified Issues*********"
+      @csvfile.puts(@auditstring)
+    end
     if !@permitall.empty?
       @csvfile.puts "\n\n\n\n*********RULES ALLOWING ALL TRAFFIC*********"
       @csvfile.puts(@permitallstring)
@@ -474,6 +533,18 @@ class Output
       @csvfile.puts "\n\n\n\n*********RULES CONFIGURED WITHOUT LOGGING*********"
       @csvfile.puts(@nologstring)
     end
+    if !@fwparse.vuln_array.empty?
+      @csvfile.puts "\n\n\n\n*********VULNERABILITIES*********"
+      @csvfile.puts(@vulnstring)
+    end
+    if !@fwparse.netw_srvc.empty?
+      @csvfile.puts "\n\n\n\n********NETWORK SERVICES*********"
+      @csvfile.puts(@servicestring)
+    end
+    if !@fwparse.user_array.empty?
+      @csvfile.puts "\n\n\n\n*********USERS*********"
+      @csvfile.puts(@userstring)
+    end
     @csvfile.close
   end
 
@@ -492,6 +563,7 @@ fwparse.paloalto
 fwparse.other
 fwparse.norules
 fwparse.users
+fwparse.fortiusers
 fwparse.net_services
 fwparse.auditrec
 fwparse.vulns
@@ -507,5 +579,6 @@ output.nolog_fix
 output.legacy_fix
 output.create_file
 output.headers
+output.user_headers
 output.generate_data
 output.write_data
