@@ -17,8 +17,8 @@ class Parsexml
     @user_array = []
     @netw_srvc  = []
     @audit_rec  = []
-    @device     = {}
     @dev_array  = []
+    @device     = {}
   end
 
   def device_type
@@ -75,7 +75,6 @@ class Parsexml
           @userinfo[:group]  = user.xpath('./tablecell[2]/item').text
           @userinfo[:pass]   = user.xpath('./tablecell[3]/item').text
           @userinfo[:priv]   = user.xpath('./tablecell[4]/item').text
-
 
           @user_array << @userinfo.dup
 
@@ -331,38 +330,38 @@ class Output
 
   def permitall_fix
     if @fwparse.device[:type] =~ /Cisco/
-      @permitall.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/)}
+      @permitall.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/) }
     elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
-      @permitall.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=rule)/)}
+      @permitall.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=rule)/) }
     elsif @fwparse.device[:type] =~ /Palo/
-      @permitall.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/)}
+      @permitall.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
     else
-      @permitall.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/)}
+      @permitall.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
     end
   end
 
   def over_permissive_fix
     @over_permissive.delete_if { |r| r[:title] =~ /Packets From Any Source To Any Destination And Any Port/i }
     if @fwparse.device[:type] =~ /Cisco/
-      @over_permissive.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/)}
+      @over_permissive.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/) }
     elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
-      @over_permissive.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=rule)/)}
+      @over_permissive.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=rule)/) }
     elsif @fwparse.device[:type] =~ /Palo/
-      @over_permissive.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/)}
+      @over_permissive.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
     else
-      @over_permissive.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/)}
+      @over_permissive.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
     end
   end
 
   def plain_fix
     if @fwparse.device[:type] =~ /Cisco/
-      @plaintext.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= clear)/)}
+      @plaintext.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= clear)/) }
     elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
-      @plaintext.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=clear)/)}
+      @plaintext.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=clear)/) }
     elsif @fwparse.device[:type] =~ /Palo/
-      @plaintext.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/)}
+      @plaintext.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
     else
-      @plaintext.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/)}
+      @plaintext.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
     end
       @plaintext.delete_if { |r| r[:combo] == "Any" }
       @plaintext.delete_if { |r| r[:combo] == "[Host] Any" }
@@ -370,13 +369,13 @@ class Output
 
   def admin_fix
     if @fwparse.device[:type] =~ /Cisco/
-      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= administrative)/)}
+      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= administrative)/) }
     elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
-      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=administrative)/)}
+      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=administrative)/) }
     elsif @fwparse.device[:type] =~ /Palo/
-      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/)}
+      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
     else
-      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/)}
+      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
     end
       @adminsrv.delete_if { |r| r[:combo] == "Any" }
       @adminsrv.delete_if { |r| r[:combo] == "[Host] Any" }
@@ -384,13 +383,13 @@ class Output
 
   def sensitive_fix
     if @fwparse.device[:type] =~ /Cisco/
-      @sensitive.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= sensitive)/)}
+      @sensitive.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= sensitive)/) }
     elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
-      @sensitive.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=sensitive)/)}
+      @sensitive.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=sensitive)/) }
     elsif @fwparse.device[:type] =~ /Palo/
-      @sensitive.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/)}
+      @sensitive.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
     else
-      @sensitive.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/)}
+      @sensitive.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
     end
       @sensitive.delete_if { |r| r[:combo] == "Any" }
       @sensitive.delete_if { |r| r[:combo] == "[Host] Any" }
@@ -398,25 +397,25 @@ class Output
 
   def nolog_fix
     if @fwparse.device[:type] =~ /Cisco/
-      @nologging.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/)}
+      @nologging.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/) }
     elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
-      @nologging.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=rule)/)}
+      @nologging.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=rule)/) }
     elsif @fwparse.device[:type] =~ /Palo/
-      @nologging.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/)}
+      @nologging.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
     else
-      @nologging.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/)}
+      @nologging.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
     end
   end
 
   def legacy_fix
     if @fwparse.device[:type] =~ /Cisco/
-      @legacy.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/)}
+      @legacy.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/) }
     elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
-      @legacy.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=rule)/)}
+      @legacy.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=rule)/) }
     elsif @fwparse.device[:type] =~ /Palo/
-      @legacy.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/)}
+      @legacy.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
     else
-      @legacy.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/)}
+      @legacy.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
     end
   end
 
@@ -431,17 +430,17 @@ class Output
     @headers = ['NipperTable', 'ACL/Zone/Interface/Policy', 'RuleNo/Name', 'Source', 'Destination', 'DestPort/Service']
   end
 
-  def user_headers
-    puts @fwparse.fwpol.xpath('//document/report/part/section/section/section/table[1]/title').text
-        # @fwpol.xpath('//document/report/part/section/section/section').each do |title|
-    # puts @fwparse.fwpol.xpath('//document/report/part/section/section/section/table/headings').text
-  end
-
   def generate_data
     if @fwparse.user_array
-      @userstring = CSV.generate do |csv|
-        csv << ['Username', 'Password', 'Privileges']
-          @fwparse.user_array.each { |row| csv << [row[:user], row[:pass], row[:priv]] }
+      @fwparse.dev_array.each { |dev| @device = dev[:type]}
+        @userstring = CSV.generate do |csv|
+          if @device !~ /Fortigate/i
+            csv << ['Username', 'Password', 'Privileges']
+              @fwparse.user_array.each { |row| csv << [row[:user], row[:pass], row[:priv]] }
+          else
+            csv << ['Username', 'Group', 'Password', 'Privilege']
+              @fwparse.user_array.each { |row| csv << [row[:user], row[:group], row[:pass], row[:priv]] }
+          end
         end
       end
     if @fwparse.netw_srvc
@@ -579,6 +578,5 @@ output.nolog_fix
 output.legacy_fix
 output.create_file
 output.headers
-output.user_headers
 output.generate_data
 output.write_data
