@@ -179,7 +179,7 @@ class Parsexml
   def cisco_fix
     if @device[:type] =~ /Cisco/
       @rule_array.each do |rule|
-        if rule[:nine] != "N/A"
+        if (rule[:nine] != "N/A") and (rule[:nine] != "No")
           rule[:combo] = rule[:dport].to_s + rule[:nine].to_s
         else
           rule[:combo] = rule[:dport]
@@ -360,6 +360,8 @@ class Output
       @plaintext.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=clear)/) }
     elsif @fwparse.device[:type] =~ /Palo/
       @plaintext.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
+    elsif @fwparse.device[:type] =~ /Dell|Sonicwall/i
+      @plaintext.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= clear-text)/i) }
     else
       @plaintext.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
     end
@@ -374,6 +376,8 @@ class Output
       @adminsrv.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=administrative)/) }
     elsif @fwparse.device[:type] =~ /Palo/
       @adminsrv.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
+    elsif @fwparse.device[:type] =~ /Dell|Sonicwall/i
+      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= administrative)/) }
     else
       @adminsrv.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
     end
@@ -388,6 +392,8 @@ class Output
       @sensitive.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=sensitive)/) }
     elsif @fwparse.device[:type] =~ /Palo/
       @sensitive.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
+    elsif @fwparse.device[:type] =~ /Dell|Sonicwall/i
+      @sensitive.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= sensitive)/) }
     else
       @sensitive.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
     end
