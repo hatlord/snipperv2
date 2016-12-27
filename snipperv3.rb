@@ -280,106 +280,35 @@ class Output
     puts "Output written to #{@csvfile.path}".light_blue.bold
   end
 
-  def generate_data 
-
-    rules_array = [@permitall, @over_permissive, @plaintext, @adminsrv, @sensitive, @nologging, @legacy]
+  def rule_data 
+    rules_array = [@permitall, @over_permissive, @plaintext, @adminsrv, @sensitive, @nologging, @legacy, @fwparse.user_array, @fwparse.netw_srvc, @fwparse.vuln_array]
+    names_array = [
+      '***PERMIT ANY TO ANY TO ANY***',
+      '***OVERLY PERMISSIVE***',
+      '***PLAINTEXT SERVICES***',
+      '***ADMINISTRATIVE SERVICES***',
+      '***SENSITIVE SERVICES***',
+      '***RULES CONFIGURED W/O LOGGING***',
+      '***LEGACY SERVICES RULES***',
+      '***LOCAL USERS***',
+      '***NETWORK SERVICES***',
+      '***VULNERABILITIES***'
+    ]
       CSV.open(@csvfile, 'w+') do |csv|
-        rules_array.each do |rule|
-          csv << ["\n"]
-          csv << rule.first.keys
-            rule.select { |rules| csv << rules.values } #this appears to work - Need to get the title of each issue into the file.
+        counter = 0
+          rules_array.each do |rule|
+            if !rule.empty?
+              csv << ["\n\n"] << [names_array[counter]]
+              csv << rule.first.keys
+              rule.select { |rules| csv << rules.values } 
+            end
+        counter += 1
       end
     end
-  #   if !@permitall.empty?
-  #     @permitallstring = CSV.generate do |csv|
-  #       csv << @fwparse.rules.first.keys
-  #         @permitall.each { |row| csv << row.values }
-  #     end
-  #   end
-  #   if !@over_permissive.empty?
-  #     @permissivestring = CSV.generate do |csv|
-  #       csv << @fwparse.rules.first.keys
-  #         @over_permissive.each { |row| csv << row.values }
-  #     end
-  #   end
-  #   if !@fwparse.user_array.empty?
-  #     @userstring = CSV.generate do |csv|
-  #       csv << @fwparse.user_array.first.keys
-  #         @fwparse.user_array.each { |row| csv << row.values }
-  #     end
-  #   end
-  #   if !@plaintext.empty?
-  #     @plainstring = CSV.generate do |csv|
-  #       csv << @fwparse.rules.first.keys
-  #         @plaintext.each { |row| csv << row.values }
-  #     end
-  #   end
-  #   if !@adminsrv.empty?
-  #     @adminstring = CSV.generate do |csv|
-  #       csv << @fwparse.rules.first.keys
-  #         @adminsrv.each { |row| csv << row.values }
-  #     end
-  #   end
-  #   if !@sensitive.empty?
-  #     @sensitivestring = CSV.generate do |csv|
-  #       csv << @fwparse.rules.first.keys
-  #         @sensitive.each { |row| csv << row.values }
-  #     end
-  #   end
-  # end
-
-
   end
-  
 
-  def write_data
-    # if !@fwparse.dev_array.empty?
-    #   @csvfile.puts "*********DEVICE DETAILS*********"
-    #   @csvfile.puts(@devicestring)
-    # end
-    # if !@fwparse.audit_rec.empty?
-    #   @csvfile.puts "\n\n\n\n*********Identified Issues*********"
-    #   @csvfile.puts(@auditstring)
-    # end
-
-
-    if !@permitall.empty?
-      @csvfile.puts "\n\n\n\n*********RULES ALLOWING ALL TRAFFIC*********"
-      @csvfile.puts(@permitallstring)
-    end
-    if !@over_permissive.empty?
-      @csvfile.puts "\n\n\n\n*********OVERLY PERMISSIVE RULES*********"
-      @csvfile.puts(@permissivestring)
-    end
-    if !@plaintext.empty?
-      @csvfile.puts "\n\n\n\n*********PLAINTEXT SERVICES*********"
-      @csvfile.puts(@plainstring)
-    end
-    if !@adminsrv.empty?
-      @csvfile.puts "\n\n\n\n*********ADMINISTRATIVE SERVICE RULES*********"
-      @csvfile.puts(@adminstring)
-    end
-    if !@sensitive.empty?
-      @csvfile.puts "\n\n\n\n*********SENSITIVE SERVICE RULES*********"
-      @csvfile.puts(@sensitivestring)
-    end
-    # if !@nologging.empty?
-    #   @csvfile.puts "\n\n\n\n*********RULES CONFIGURED WITHOUT LOGGING*********"
-    #   @csvfile.puts(@nologstring)
-    # end
-    # if !@fwparse.vuln_array.empty?
-    #   @csvfile.puts "\n\n\n\n*********VULNERABILITIES*********"
-    #   @csvfile.puts(@vulnstring)
-    # end
-    # if !@fwparse.netw_srvc.empty?
-    #   @csvfile.puts "\n\n\n\n********NETWORK SERVICES*********"
-    #   @csvfile.puts(@servicestring)
-    # end
-    if !@fwparse.user_array.empty?
-      @csvfile.puts "\n\n\n\n*********USERS*********"
-      @csvfile.puts(@userstring)
-    end
-    @csvfile.close
+  def other_data
+    #users, vulns, auditrec etc
   end
 
 end
@@ -401,6 +330,6 @@ fwparse.rules
 output = Output.new(fwparse)
 output.build_arrays
 output.create_file
-output.generate_data
+output.rule_data
 # output.write_data
 
