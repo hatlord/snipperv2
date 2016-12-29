@@ -4,7 +4,6 @@
 require 'nokogiri'
 require 'csv'
 require 'colorize'
-require 'pp'
 
 class Parsexml
 
@@ -109,11 +108,12 @@ class Parsexml
         title.xpath('./headings').each do |header|
           headings = header.xpath('./heading').map(&:text)
 
-            ref.xpath('./table/tablebody/tablerow').each do |issue|
+            ref.xpath('./table[2]/tablebody/tablerow').each do |issue|
               if @vuln[:title].to_s == "Vulnerability audit summary findings"
                 headings.each do |head|
                   val = headings.index(head).to_i + 1
                   @vuln[head.to_sym] = issue.xpath("./tablecell[#{val}]/item").map(&:text).join("\r")
+                  @vuln[:allrefs]    = @vuln[:'Security Advisory'].to_s + "\r" + @vuln[:References].to_s
                 end
               @vuln_array << @vuln.dup
             end
@@ -148,13 +148,6 @@ class Parsexml
 
   def rules
     @rule_array
-  end
-
-  def testprint
-    # @rule_array.each { |r| puts r }
-    # @netw_srvc.each { |n| puts n}
-    # puts @vuln_array
-
   end
 
 end
@@ -280,8 +273,24 @@ class Output
     puts "Output written to #{@csvfile.path}".light_blue.bold
   end
 
-  def rule_data 
-    rules_array = [@permitall, @over_permissive, @plaintext, @adminsrv, @sensitive, @nologging, @legacy, @fwparse.user_array, @fwparse.netw_srvc, @fwparse.vuln_array]
+  def output_data
+
+    #Populate device info
+    csv << ["\n\n"] << ["***DEVICE INFO***"]
+    csv << ['Name', 'Type', 'Full OS Version']
+      @fwparse.dev_array.each do |device|
+        csv << [device[:name], device[:type], device[:fullos]]
+    end
+    
+    #Populate Audit Recommendations (This should go before rules and after device info)
+    csv << ["\n\n"] << ["***Summary of Issues***"]
+    csv << @fwparse.audit_rec.first.keys
+      @fwparse.audit_rec.each do |audit|
+        csv << audit.values
+    end
+
+    #populate rule issues
+    rules_array = [@permitall, @over_permissive, @plaintext, @adminsrv, @sensitive, @nologging, @legacy]
     names_array = [
       '***PERMIT ANY TO ANY TO ANY***',
       '***OVERLY PERMISSIVE***',
@@ -290,9 +299,6 @@ class Output
       '***SENSITIVE SERVICES***',
       '***RULES CONFIGURED W/O LOGGING***',
       '***LEGACY SERVICES RULES***',
-      '***LOCAL USERS***',
-      '***NETWORK SERVICES***',
-      '***VULNERABILITIES***'
     ]
       CSV.open(@csvfile, 'w+') do |csv|
         counter = 0
@@ -302,14 +308,39 @@ class Output
               csv << rule.first.keys
               rule.select { |rules| csv << rules.values } 
             end
-        counter += 1
+          counter += 1
+        end
+
+      #Populate vulnerabilities
+        csv << ["\n\n"] << ["***VULNERABILITIES***"]
+        csv << ['CVE', 'Severity', 'CVSS', 'References']
+        @fwparse.vuln_array.each do |vuln|
+          csv << [vuln[:Vulnerability], vuln[:Rating], vuln[:'CVSSv2 Score'], vuln[:allrefs]]
+        end
+      #Populate Network Services Table
+        csv << ["\n\n"] << ["***NETWORK SERVICES***"]
+        csv << @fwparse.netw_srvc.first.keys
+        @fwparse.netw_srvc.each do |service|
+          csv << service.values
+        end
+      #Populate user table
+        csv << ["\n\n"] << ["***LOCAL USERS***"]
+        csv << @fwparse.user_array.first.keys
+        @fwparse.user_array.each do |user|
+          csv << user.values
+        end
       end
-    end
+
+
+
   end
 
-  def other_data
-    #users, vulns, auditrec etc
-  end
+    # if @fwparse.vuln_array
+    #   @vulnstring = CSV.generate do |csv|
+    #     csv << ['CVE', 'Severity', 'CVSS', 'Advisorys/Refs']
+    #       @fwparse.vuln_array.each { |row| csv << [row[:cve], row[:severity], row[:cvss], row[:allrefs]] }
+    #     end
+    #   end
 
 end
 
@@ -330,6 +361,6 @@ fwparse.rules
 output = Output.new(fwparse)
 output.build_arrays
 output.create_file
-output.rule_data
+output.output_data
 # output.write_data
 
