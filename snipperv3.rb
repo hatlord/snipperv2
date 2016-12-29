@@ -138,9 +138,39 @@ class Parsexml
                 headings.each do |head|
                   val = headings.index(head).to_i + 1
                   rules[head.to_sym] = item.xpath("./tablecell[#{val}]/item").map(&:text).join("\r") #assigns table headers as keys (symbols) and each xml 'item' (rule element) as a value, src, dst, port etc.
+                  rules[:aclname]    = rules[:ref].gsub(/FILTER.RULE...../, '').gsub(/\d$/, '')
+                  rules[:combo]      = rules[:Service]
                 end
               @rule_array << rules.dup
           end
+        end
+      end
+    end
+  end
+
+  def cisco_combine_service
+    if @device[:type] =~ /Cisco/
+      @rule_array.each do |rule|
+        rule[:combo] = rule[:'Dst Port'].to_s + rule[:Service].to_s
+      end
+    end
+  end
+
+  def cisco_protocol_fix
+    if @device[:type] =~ /Cisco/
+      @rule_array.each do |rule|
+        if rule[:combo].empty?
+          rule[:combo] = rule[:Protocol]
+        end
+      end
+    end
+  end
+
+  def cisco_proto_port
+    if @device[:type] =~ /Cisco/
+      @rule_array.each do |rule|
+        if !rule[:combo].start_with?('[Group]', 'ICMP', 'GRE', 'Any', 'ESP', 'AHP', 'AH' )
+          rule[:combo] = rule[:Protocol].to_s + "/" + rule[:'Dst Port'].to_s
         end
       end
     end
@@ -168,102 +198,36 @@ class Output
     @legacy          = @fwparse.rules.select { |r| r[:title] =~ /Potentially Unnecessary Services/ }
   end
 
-
-  def permitall_fix
-    if @fwparse.device[:type] =~ /Cisco/
-      @permitall.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/) }
-    elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
-      @permitall.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=rule)/) }
-    elsif @fwparse.device[:type] =~ /Palo/
-      @permitall.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
-    else
-      @permitall.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
-    end
-  end
-
-  def over_permissive_fix
+  def overly_permissive_rules_fix
     @over_permissive.delete_if { |r| r[:title] =~ /Packets From Any Source To Any Destination And Any Port/i }
-    if @fwparse.device[:type] =~ /Cisco/
-      @over_permissive.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/) }
-    elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
-      @over_permissive.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=rule)/) }
-    elsif @fwparse.device[:type] =~ /Palo/
-      @over_permissive.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
-    else
-      @over_permissive.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
-    end
   end
 
-  def plain_fix
-    if @fwparse.device[:type] =~ /Cisco/
-      @plaintext.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= clear)/) }
-    elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
-      @plaintext.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=clear)/) }
-    elsif @fwparse.device[:type] =~ /Palo/
-      @plaintext.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
-    elsif @fwparse.device[:type] =~ /Dell|Sonicwall/i
-      @plaintext.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= clear-text)/i) }
-    else
-      @plaintext.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
-    end
-      @plaintext.delete_if { |r| r[:combo] == "Any" }
-      @plaintext.delete_if { |r| r[:combo] == "[Host] Any" }
+  def plaintext_rules_fix
+    @plaintext.each { |r| r[:aclname] = r[:ref].gsub(/FILTER.BLACKLIST.CLEARTEXT/, '').gsub(/\d$/, '') }
+    @plaintext.delete_if { |r| r[:combo] == "Any" }
+    @plaintext.delete_if { |r| r[:combo] == "[Host] Any" }
   end
 
-  def admin_fix
-    if @fwparse.device[:type] =~ /Cisco/
-      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= administrative)/) }
-    elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
-      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=administrative)/) }
-    elsif @fwparse.device[:type] =~ /Palo/
-      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
-    elsif @fwparse.device[:type] =~ /Dell|Sonicwall/i
-      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= administrative)/) }
-    else
-      @adminsrv.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
-    end
-      @adminsrv.delete_if { |r| r[:combo] == "Any" }
-      @adminsrv.delete_if { |r| r[:combo] == "[Host] Any" }
+  def admin_rules_fix
+    @adminsrv.each { |r| r[:aclname] = r[:ref].gsub(/FILTER.BLACKLIST.ADMIN/, '').gsub(/\d$/, '') }
+    @adminsrv.delete_if { |r| r[:combo] == "Any" }
+    @adminsrv.delete_if { |r| r[:combo] == "[Host] Any" }
   end
 
-  def sensitive_fix
-    if @fwparse.device[:type] =~ /Cisco/
-      @sensitive.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= sensitive)/) }
-    elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
-      @sensitive.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=sensitive)/) }
-    elsif @fwparse.device[:type] =~ /Palo/
-      @sensitive.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
-    elsif @fwparse.device[:type] =~ /Dell|Sonicwall/i
-      @sensitive.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= sensitive)/) }
-    else
-      @sensitive.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
-    end
-      @sensitive.delete_if { |r| r[:combo] == "Any" }
-      @sensitive.delete_if { |r| r[:combo] == "[Host] Any" }
+  def sensitive_rules_fix
+    @sensitive.each { |r| r[:aclname] = r[:ref].gsub(/FILTER.BLACKLIST.SENSITIVE/, '').gsub(/\d$/, '') }
+    @sensitive.delete_if { |r| r[:combo] == "Any" }
+    @sensitive.delete_if { |r| r[:combo] == "[Host] Any" }
   end
 
-  def nolog_fix
-    if @fwparse.device[:type] =~ /Cisco/
-      @nologging.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/) }
-    elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
-      @nologging.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=rule)/) }
-    elsif @fwparse.device[:type] =~ /Palo/
-      @nologging.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
-    else
-      @nologging.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
-    end
+  def nolog_rules_fix
+    @nologging.each { |r| r[:aclname] = r[:ref].gsub(/FILTER.LOG.ALLOW|FILTER.LOG.DENY/, '').gsub(/\d$/, '') }
   end
 
   def legacy_fix
-    if @fwparse.device[:type] =~ /Cisco/
-      @legacy.each { |r| r[:aclname] = r[:table].match(/(?<=ACL |List )(.*)(?= rule)/) }
-    elsif @fwparse.device[:type] =~ /Checkpoint|Alteon/
-      @legacy.each { |r| r[:aclname] = r[:table].match(/(?<=Collections )(.*)(?=rule)/) }
-    elsif @fwparse.device[:type] =~ /Palo/
-      @legacy.each { |r| r[:aclname] = r[:table].match(/(.*)(?=rule)/) }
-    else
-      @legacy.each { |r| r[:aclname] = r[:table].match(/(?<=from )(.*)(?= rule)/) }
-    end
+    @legacy.each { |r| r[:aclname] = r[:ref].gsub(/FILTER.LOG.ALLOW|FILTER.LOG.DENY/, '').gsub(/\d$/, '') }
+    @legacy.delete_if { |r| r[:combo] == "Any" }
+    @legacy.delete_if { |r| r[:combo] == "[Host] Any" }
   end
 
   def create_file
@@ -276,18 +240,19 @@ class Output
   def output_data
 
     #Populate device info
-    csv << ["\n\n"] << ["***DEVICE INFO***"]
-    csv << ['Name', 'Type', 'Full OS Version']
+    CSV.open(@csvfile, 'w+') do |csv|
+      csv << ["\n\n"] << ["***DEVICE INFO***"]
+      csv << ['Name', 'Type', 'Full OS Version']
       @fwparse.dev_array.each do |device|
         csv << [device[:name], device[:type], device[:fullos]]
-    end
+      end
     
-    #Populate Audit Recommendations (This should go before rules and after device info)
-    csv << ["\n\n"] << ["***Summary of Issues***"]
-    csv << @fwparse.audit_rec.first.keys
+    #Populate Audit Recommendations
+      csv << ["\n\n"] << ["***Summary of Issues***"]
+      csv << @fwparse.audit_rec.first.keys
       @fwparse.audit_rec.each do |audit|
         csv << audit.values
-    end
+      end
 
     #populate rule issues
     rules_array = [@permitall, @over_permissive, @plaintext, @adminsrv, @sensitive, @nologging, @legacy]
@@ -300,54 +265,44 @@ class Output
       '***RULES CONFIGURED W/O LOGGING***',
       '***LEGACY SERVICES RULES***',
     ]
-      CSV.open(@csvfile, 'w+') do |csv|
-        counter = 0
-          rules_array.each do |rule|
-            if !rule.empty?
-              csv << ["\n\n"] << [names_array[counter]]
-              csv << rule.first.keys
-              rule.select { |rules| csv << rules.values } 
-            end
-          counter += 1
-        end
+      counter = 0
+        rules_array.each do |rule|
+          if !rule.empty?
+            csv << ["\n\n"] << [names_array[counter]]
+            csv << ['Nipper Issue', 'ACL/Interface/Zone', 'Rule Name/Number', 'Source', 'Destination', 'Service', 'Action', 'Log', 'Active']
+            rule.each { |r| csv << [r[:title], r[:aclname], r[:Rule], r[:Source], r[:Destination], r[:combo], r[:Action], r[:Log], r[:Active]] }
+          end
+        counter += 1
+      end
 
       #Populate vulnerabilities
+      if !@fwparse.vuln_array.empty?
         csv << ["\n\n"] << ["***VULNERABILITIES***"]
         csv << ['CVE', 'Severity', 'CVSS', 'References']
         @fwparse.vuln_array.each do |vuln|
           csv << [vuln[:Vulnerability], vuln[:Rating], vuln[:'CVSSv2 Score'], vuln[:allrefs]]
         end
+      end
       #Populate Network Services Table
+      if !@fwparse.netw_srvc.empty?
         csv << ["\n\n"] << ["***NETWORK SERVICES***"]
         csv << @fwparse.netw_srvc.first.keys
         @fwparse.netw_srvc.each do |service|
           csv << service.values
         end
+      end
       #Populate user table
+      if !@fwparse.user_array.empty?
         csv << ["\n\n"] << ["***LOCAL USERS***"]
         csv << @fwparse.user_array.first.keys
         @fwparse.user_array.each do |user|
           csv << user.values
         end
       end
-
-
-
+    end
   end
 
-    # if @fwparse.vuln_array
-    #   @vulnstring = CSV.generate do |csv|
-    #     csv << ['CVE', 'Severity', 'CVSS', 'Advisorys/Refs']
-    #       @fwparse.vuln_array.each { |row| csv << [row[:cve], row[:severity], row[:cvss], row[:allrefs]] }
-    #     end
-    #   end
-
 end
-
-
-
-
-
 
 fwparse = Parsexml.new
 fwparse.device_type
@@ -356,11 +311,17 @@ fwparse.net_services
 fwparse.auditrec
 fwparse.vulns
 fwparse.parse_rules
+fwparse.cisco_combine_service
+fwparse.cisco_protocol_fix
+fwparse.cisco_proto_port
 fwparse.rules
 
 output = Output.new(fwparse)
 output.build_arrays
+output.overly_permissive_rules_fix
+output.plaintext_rules_fix
+output.admin_rules_fix
+output.sensitive_rules_fix
+output.nolog_rules_fix
 output.create_file
 output.output_data
-# output.write_data
-
