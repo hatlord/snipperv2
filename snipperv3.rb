@@ -5,6 +5,11 @@ require 'nokogiri'
 require 'csv'
 require 'colorize'
 
+if ARGV.empty?
+  puts "You didn't provide a Nipper XML File...".red.bold
+  exit
+end
+
 class Parsexml
 
   attr_reader :rule_array, :device, :vuln_array, :user_array
@@ -176,6 +181,12 @@ class Parsexml
     end
   end
 
+  def norules
+    if @fwpol.xpath('//document/report/part/section/@title').text =~ /No Network Filtering Rules Were Configured/
+      puts "NO FIREWALL RULES WERE CONFIGURED - DID SOMETHING GO WRONG?".white.on_red.blink
+    end
+  end
+
   def rules
     @rule_array
   end
@@ -225,7 +236,7 @@ class Output
   end
 
   def legacy_fix
-    @legacy.each { |r| r[:aclname] = r[:ref].gsub(/FILTER.LOG.ALLOW|FILTER.LOG.DENY/, '').gsub(/\d$/, '') }
+    @legacy.each { |r| r[:aclname] = r[:ref].gsub(/FILTER.BLACKLIST.UNNECESSARY/, '').gsub(/\d$/, '') }
     @legacy.delete_if { |r| r[:combo] == "Any" }
     @legacy.delete_if { |r| r[:combo] == "[Host] Any" }
   end
@@ -241,7 +252,7 @@ class Output
 
     #Populate device info
     CSV.open(@csvfile, 'w+') do |csv|
-      csv << ["\n\n"] << ["***DEVICE INFO***"]
+      csv << ["***DEVICE INFO***"]
       csv << ['Name', 'Type', 'Full OS Version']
       @fwparse.dev_array.each do |device|
         csv << [device[:name], device[:type], device[:fullos]]
@@ -314,6 +325,7 @@ fwparse.parse_rules
 fwparse.cisco_combine_service
 fwparse.cisco_protocol_fix
 fwparse.cisco_proto_port
+fwparse.norules
 fwparse.rules
 
 output = Output.new(fwparse)
@@ -323,5 +335,6 @@ output.plaintext_rules_fix
 output.admin_rules_fix
 output.sensitive_rules_fix
 output.nolog_rules_fix
+output.legacy_fix
 output.create_file
 output.output_data
