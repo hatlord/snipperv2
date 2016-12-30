@@ -6,7 +6,7 @@ require 'csv'
 require 'colorize'
 
 if ARGV.empty?
-  puts "Usage: ./snipperv2 /path/to/your/nipper.xml".red.bold
+  puts "You didn't provide a Nipper XML file!.\nUsage: ./snipperv2 /path/to/your/nipper.xml".red.bold
   exit
 end
 
