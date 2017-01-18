@@ -232,7 +232,7 @@ class Output
   end
 
   def nolog_rules_fix
-    @nologging.each { |r| r[:aclname] = r[:ref].gsub(/FILTER.LOG.ALLOW|FILTER.LOG.DENY/, '').gsub(/\d$/, '') }
+    @nologging.each { |r| r[:aclname] = r[:ref].gsub(/FILTER.LOG.ALLOW|FILTER.LOG.DENY|FILTER.LOG.DROP/, '').gsub(/\d$/, '') }
   end
 
   def legacy_fix
