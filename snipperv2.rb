@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 #Snipperv2 is a Nipper FW config parsing script. V2 uses the Nipper XML output whereas V1 uses CSV.
+#This version will parse Nipper outputs containing multiple devices
 
 require 'nokogiri'
 require 'csv'
@@ -13,7 +14,7 @@ end
 class Parsexml
 
   attr_reader :rule_array, :device, :vuln_array, :user_array
-  attr_reader :netw_srvc, :audit_rec, :dev_array, :fwpol
+  attr_reader :netw_srvc, :audit_rec, :dev_array, :fwpol, :filename
 
   def initialize
     @fwpol      = Nokogiri::XML(File.read(ARGV[0]))
@@ -24,36 +25,46 @@ class Parsexml
     @audit_rec  = []
     @dev_array  = []
     @device     = {}
+    @filename = ARGV[0].split('/')[-1].split('.')[0]
   end
 
   def device_type
     @fwpol.xpath('//document').each do |intro|
-      @device[:name]     = intro.xpath("./information/devices/device/@name").text
-      @device[:type]     = intro.xpath("./information/devices/device/@type").text
-      @device[:os]       = intro.xpath("./information/devices/device/@os").text
-      @device[:version]  = intro.xpath("./information/devices/device/@osversion").text
-      @device[:fullos]   = @device[:os].to_s + " " + @device[:version].to_s
-      puts "#{@device[:name]}\t#{@device[:type]}\t#{@device[:os]}\t#{@device[:version]}".light_blue.bold
-
-      @dev_array << @device.dup
+      @device[:name]     = intro.xpath("./information/devices/device/@name").map(&:text).join("\n")
+      @device[:type]     = intro.xpath("./information/devices/device/@type").map(&:text).join("\n")
+      @device[:os]       = intro.xpath("./information/devices/device/@os").map(&:text).join("\n")
+      @device[:version]  = intro.xpath("./information/devices/device/@osversion").map(&:text).join("\n")
+      puts "Parsing #{@filename}".light_blue.bold
+        if @device[:name].each_line.count == 1
+          puts "The following device was detected\n#{device[:name]}".green.bold
+        else 
+          puts "The following #{@device[:name].each_line.count} devices were detected\n#{device[:name]}".green.bold
+        end
+        @dev_array << @device.dup
     end
   end
 
   def users
-    @fwpol.xpath('//document/report/part/section/section/section').each do |title|
-      @userinfo = {}
+    @userinfo = {}
+    @fwpol.xpath('//document/report/part/section/section').each do |device|
+      if device.xpath('./@index').text =~ /4\.[2-9]\.1$/
+        device.xpath('./table/tablebody/tablerow[1]/tablecell[2]').each do |user|
+          @userinfo[:device] = user.xpath('./item').text.upcase
+        end
+      end
+    device.xpath('./section').each do |title|
       @userinfo[:title] = title.xpath('@title').text
+        title.xpath('./table/headings').each do |header|
+          headings = header.xpath('./heading').map(&:text)
 
-      title.xpath('./table/headings').each do |header|
-        headings = header.xpath('./heading').map(&:text)
-
-          title.xpath('./table/tablebody/tablerow').each do |user|
-            if @userinfo[:title] == "Local Users"
-              headings.each do |head|
-                val = headings.index(head).to_i + 1
-                @userinfo[head.to_sym] = user.xpath("./tablecell[#{val}]/item").map(&:text).join("\r")
-              end  
-              @user_array << @userinfo.dup
+            title.xpath('./table/tablebody/tablerow').each do |user|
+              if @userinfo[:title] == "Local Users"
+                headings.each do |head|
+                  val = headings.index(head).to_i + 1
+                  @userinfo[head.to_sym] = user.xpath("./tablecell[#{val}]/item").map(&:text).join("\r")
+                end  
+                @user_array << @userinfo.dup
+            end
           end
         end
       end
@@ -61,22 +72,25 @@ class Parsexml
   end
 
   def net_services
+    @services = {}
     @fwpol.xpath('//document/report/part/section/section').each do |title|
-      @services = {}
       @services[:title] = title.xpath('@title').text
-
-      title.xpath('./table/headings').each do |header|
-        headings = header.xpath('./heading').map(&:text)
-
-          title.xpath('./table/tablebody/tablerow').each do |service|
-            if @services[:title] == "Network Services"
-              headings.each do |head|
-                val = headings.index(head).to_i + 1
-                @services[head.to_sym] = service.xpath("./tablecell[#{val}]/item").map(&:text).join("\r")
-              end
-              @netw_srvc << @services.dup
+        if title.xpath('./@index').text =~ /4\.[2-9]\.1$/
+          title.xpath('./table/tablebody/tablerow[1]/tablecell[2]').each do |dev|
+            @services[:device] = dev.xpath('./item').text.upcase
           end
         end
+      title.xpath('./table/headings').each do |header|
+        headings = header.xpath('./heading').map(&:text)
+        title.xpath('./table/tablebody/tablerow').each do |service|
+          if @services[:title] == "Network Services"
+            headings.each do |head|
+              val = headings.index(head).to_i + 1
+              @services[head.to_sym] = service.xpath("./tablecell[#{val}]/item").map(&:text).join("\r")
+            end
+            @netw_srvc << @services.dup
+          end
+        end 
       end
     end
   end
@@ -113,12 +127,16 @@ class Parsexml
         title.xpath('./headings').each do |header|
           headings = header.xpath('./heading').map(&:text)
 
-            ref.xpath('./table[2]/tablebody/tablerow').each do |issue|
-              if @vuln[:title].to_s == "Vulnerability audit summary findings"
-                headings.each do |head|
-                  val = headings.index(head).to_i + 1
-                  @vuln[head.to_sym] = issue.xpath("./tablecell[#{val}]/item").map(&:text).join("\r")
-                  @vuln[:allrefs]    = @vuln[:'Security Advisory'].to_s + "\r" + @vuln[:References].to_s
+          ref.xpath('./table[2]/tablebody/tablerow').each do |issue|
+            if @vuln[:title].to_s == "Vulnerability audit summary findings"
+              headings.each do |head|
+                val = headings.index(head).to_i + 1
+                @vuln[head.to_sym] = issue.xpath("./tablecell[#{val}]/item").map(&:text).join("\r")
+                @vuln[:cvelink]    = "https://cve.mitre.org/cgi-bin/cvename.cgi?name=#{@vuln[:Vulnerability]}"
+                @vuln[:allrefs]    = @vuln[:'Security Advisory'].to_s + "\r" + @vuln[:References].to_s
+                  if @vuln[:allrefs] == "\r"
+                    @vuln[:allrefs] = @vuln[:cvelink]
+                  end
                 end
               @vuln_array << @vuln.dup
             end
@@ -127,6 +145,7 @@ class Parsexml
       end
     end 
   end
+    
 
   def parse_rules
     @fwpol.xpath('//document/report/part/section').each do |title|
@@ -136,6 +155,8 @@ class Parsexml
         title.xpath('./section/table').each do |info|
           rules[:table]    = info.xpath('@title').text
           rules[:ref]      = info.xpath('@ref').text
+          rules[:dev_name] = rules[:table].match(/(?<= on ).*/).to_s
+
           headings = info.xpath('./headings/heading').map(&:text) #creates an array for each set of table headings
 
             info.xpath('./tablebody/tablerow').each do |item|
@@ -183,7 +204,7 @@ class Parsexml
 
   def norules
     if @fwpol.xpath('//document/report/part/section/@title').text =~ /No Network Filtering Rules Were Configured/
-      puts "NO FIREWALL RULES WERE CONFIGURED - DID SOMETHING GO WRONG?".white.on_red.blink
+      puts "NO FIREWALL RULES WERE CONFIGURED ON AT LEAST ONE DEVICE - DID SOMETHING GO WRONG?".white.on_red
     end
   end
 
@@ -211,6 +232,7 @@ class Output
 
   def overly_permissive_rules_fix
     @over_permissive.delete_if { |r| r[:title] =~ /Packets From Any Source To Any Destination And Any Port/i }
+    @over_permissive.sort_by!  { |r| r[:dev_name]}
   end
 
   def plaintext_rules_fix
@@ -243,7 +265,7 @@ class Output
 
   def create_file
     Dir.mkdir("#{Dir.home}/Documents/Snipper_Out/") unless File.exists?("#{Dir.home}/Documents/Snipper_Out/")
-    @file    = "#{@fwparse.device[:type].gsub(" ", "_")}_#{Time.now.strftime("%d%b%Y_%H%M%S")}"
+    @file    = "#{@fwparse.filename}_#{Time.now.strftime("%d%b%Y_%H%M%S")}"
     @csvfile = File.new("#{Dir.home}/Documents/Snipper_Out/#{@file}.csv", 'w+')
     puts "Output written to #{@csvfile.path}".light_blue.bold
   end
@@ -252,9 +274,9 @@ class Output
     #Populate device info
     CSV.open(@csvfile, 'w+') do |csv|
       csv << ["***DEVICE INFO***"]
-      csv << ['Name', 'Type', 'Full OS Version']
+      csv << @fwparse.dev_array.first.keys
       @fwparse.dev_array.each do |device|
-        csv << [device[:name], device[:type], device[:fullos]]
+        csv << device.values
       end
     
     #Populate Audit Recommendations
@@ -279,8 +301,8 @@ class Output
         rules_array.each do |rule|
           if !rule.empty?
             csv << ["\n\n"] << [names_array[counter]]
-            csv << ['Nipper Issue', 'ACL/Interface/Zone', 'Rule Name/Number', 'Source', 'Destination', 'Service', 'Action', 'Log', 'Active']
-            rule.each { |r| csv << [r[:title], r[:aclname], r[:Rule], r[:Source], r[:Destination], r[:combo], r[:Action], r[:Log], r[:Active]] }
+            csv << ['Device Name', 'Issue Name', 'ACL/Interface/Zone', 'Rule Name/Number', 'Source', 'Destination', 'Service', 'Action', 'Log', 'Active']
+            rule.each { |r| csv << [r[:dev_name], r[:title], r[:aclname], r[:Rule], r[:Source], r[:Destination], r[:combo], r[:Action], r[:Log], r[:Active]] }
           end
         counter += 1
       end
@@ -288,9 +310,9 @@ class Output
       #Populate vulnerabilities
       if !@fwparse.vuln_array.empty?
         csv << ["\n\n"] << ["***VULNERABILITIES***"]
-        csv << ['CVE', 'Severity', 'CVSS', 'References']
+        csv << ['CVE', 'Severity', 'CVSS', 'References', 'Affected Devices']
         @fwparse.vuln_array.each do |vuln|
-          csv << [vuln[:Vulnerability], vuln[:Rating], vuln[:'CVSSv2 Score'], vuln[:allrefs]]
+          csv << [vuln[:Vulnerability], vuln[:Rating], vuln[:'CVSSv2 Score'], vuln[:allrefs], vuln[:"Affected Devices"]]
         end
       end
       #Populate Network Services Table
