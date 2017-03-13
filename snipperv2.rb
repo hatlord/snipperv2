@@ -151,23 +151,30 @@ class Parsexml
     @fwpol.xpath('//document/report/part/section').each do |title|
       rules = {}
         rules[:title]  = title.xpath('@title').text
+
+          title.xpath('./issuedetails/devices/device').each do |filter|
+            rules[:nofilter] = filter.xpath('./@name').text
+              if rules[:title] =~ /No Network Filtering Rules Were Configured/
+                puts "NO FIREWALL RULES FOUND ON: #{rules[:nofilter].upcase} CHECK DEFAULT ACTION!".white.on_red
+              end
       
-        title.xpath('./section/table').each do |info|
-          rules[:table]    = info.xpath('@title').text
-          rules[:ref]      = info.xpath('@ref').text
-          rules[:dev_name] = rules[:table].match(/(?<= on ).*/).to_s
+              title.xpath('./section/table').each do |info|
+                rules[:table]    = info.xpath('@title').text
+                rules[:ref]      = info.xpath('@ref').text
+                rules[:dev_name] = rules[:table].match(/(?<= on ).*/).to_s
 
-          headings = info.xpath('./headings/heading').map(&:text) #creates an array for each set of table headings
+                headings = info.xpath('./headings/heading').map(&:text) #creates an array for each set of table headings
 
-            info.xpath('./tablebody/tablerow').each do |item|
-              if rules[:ref] =~ /FILTER\./
-                headings.each do |head|
-                  val = headings.index(head).to_i + 1
-                  rules[head.to_sym] = item.xpath("./tablecell[#{val}]/item").map(&:text).join("\r") #assigns table headers as keys (symbols) and each xml 'item' (rule element) as a value, src, dst, port etc.
-                  rules[:aclname]    = rules[:ref].gsub(/FILTER.RULE...../, '').gsub(/\d$/, '')
-                  rules[:combo]      = rules[:Service]
-                end
-              @rule_array << rules.dup
+                  info.xpath('./tablebody/tablerow').each do |item|
+                    if rules[:ref] =~ /FILTER\./
+                      headings.each do |head|
+                        val = headings.index(head).to_i + 1
+                        rules[head.to_sym] = item.xpath("./tablecell[#{val}]/item").map(&:text).join("\r") #assigns table headers as keys (symbols) and each xml 'item' (rule element) as a value, src, dst, port etc.
+                        rules[:aclname]    = rules[:ref].gsub(/FILTER.RULE...../, '').gsub(/\d$/, '')
+                        rules[:combo]      = rules[:Service]
+                      end
+                    @rule_array << rules.dup
+            end
           end
         end
       end
@@ -199,12 +206,6 @@ class Parsexml
           rule[:combo] = rule[:Protocol].to_s + "/" + rule[:'Dst Port'].to_s
         end
       end
-    end
-  end
-
-  def norules
-    if @fwpol.xpath('//document/report/part/section/@title').text =~ /No Network Filtering Rules Were Configured/
-      puts "NO FIREWALL RULES WERE CONFIGURED ON AT LEAST ONE DEVICE - DID SOMETHING GO WRONG?".white.on_red
     end
   end
 
@@ -346,7 +347,6 @@ fwparse.parse_rules
 fwparse.cisco_combine_service
 fwparse.cisco_protocol_fix
 fwparse.cisco_proto_port
-fwparse.norules
 fwparse.rules
 
 output = Output.new(fwparse)
