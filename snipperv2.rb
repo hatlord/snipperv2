@@ -157,24 +157,24 @@ class Parsexml
               if rules[:title] =~ /No Network Filtering Rules Were Configured/
                 puts "NO FIREWALL RULES FOUND ON: #{rules[:nofilter].upcase} CHECK DEFAULT ACTION!".white.on_red
               end
+          end
       
-              title.xpath('./section/table').each do |info|
-                rules[:table]    = info.xpath('@title').text
-                rules[:ref]      = info.xpath('@ref').text
-                rules[:dev_name] = rules[:table].match(/(?<= on ).*/).to_s
+          title.xpath('./section/table').each do |info|
+            rules[:table]    = info.xpath('@title').text
+            rules[:ref]      = info.xpath('@ref').text
+            rules[:dev_name] = rules[:table].match(/(?<= on ).*/).to_s
 
-                headings = info.xpath('./headings/heading').map(&:text) #creates an array for each set of table headings
+            headings = info.xpath('./headings/heading').map(&:text) #creates an array for each set of table headings
 
-                  info.xpath('./tablebody/tablerow').each do |item|
-                    if rules[:ref] =~ /FILTER\./
-                      headings.each do |head|
-                        val = headings.index(head).to_i + 1
-                        rules[head.to_sym] = item.xpath("./tablecell[#{val}]/item").map(&:text).join("\r") #assigns table headers as keys (symbols) and each xml 'item' (rule element) as a value, src, dst, port etc.
-                        rules[:aclname]    = rules[:ref].gsub(/FILTER.RULE...../, '').gsub(/\d$/, '')
-                        rules[:combo]      = rules[:Service]
-                      end
-                    @rule_array << rules.dup
-            end
+              info.xpath('./tablebody/tablerow').each do |item|
+                if rules[:ref] =~ /FILTER\./
+                  headings.each do |head|
+                    val = headings.index(head).to_i + 1
+                    rules[head.to_sym] = item.xpath("./tablecell[#{val}]/item").map(&:text).join("\r") #assigns table headers as keys (symbols) and each xml 'item' (rule element) as a value, src, dst, port etc.
+                    rules[:aclname]    = rules[:ref].gsub(/FILTER.RULE...../, '').gsub(/\d$/, '')
+                    rules[:combo]      = rules[:Service]
+                  end
+                @rule_array << rules.dup
           end
         end
       end
