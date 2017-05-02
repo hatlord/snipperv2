@@ -266,7 +266,7 @@ class Output
 
   def create_file
     Dir.mkdir("#{Dir.home}/Documents/Snipper_Out/") unless File.exists?("#{Dir.home}/Documents/Snipper_Out/")
-    @csvfile = File.new("#{Dir.home}/Documents/Snipper_Out/#{Time.now.strftime("%d%b%Y_%H%M%S")}.csv", 'w+')
+    @csvfile = File.new("#{Dir.home}/Documents/Snipper_Out/Parsenip_#{Time.now.strftime("%d%b%Y_%H%M%S")}.csv", 'w+')
     puts "Output written to #{@csvfile.path}".light_blue.bold
   end
 
